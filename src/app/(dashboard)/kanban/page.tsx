@@ -1,0 +1,321 @@
+"use client";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragEndEvent,
+  useDroppable,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Topbar } from "@/components/layout/Topbar";
+import { Button, Loading, StatusBadge } from "@/components/ui";
+import { formatWeight, formatDate, formatCurrency } from "@/lib/utils";
+import { RefreshCw, ExternalLink, GripVertical, User, Package } from "lucide-react";
+
+const COLS = [
+  { key: "PROGRAMADO",    label: "Programado",    icon: "📋", color: "#9ca3af" }, // cinza
+  { key: "EM_SEPARACAO",  label: "Em Separação",  icon: "📦", color: "#f97316" }, // laranjado
+  { key: "CARREGADO",     label: "Carregado",     icon: "🔄", color: "#38bdf8" }, // azul claro
+  { key: "EM_ROTA",       label: "Em Rota",       icon: "🚛", color: "#eab308" }, // amarelo
+  { key: "ENTREGUE",      label: "Entregue",      icon: "✅", color: "#10b981" }, // verde
+  { key: "FINALIZADO",    label: "Finalizado",    icon: "🏁", color: "#a855f7" }, // roxo
+  { key: "OCORRENCIA",    label: "Ocorrência",    icon: "⚠️", color: "#ef4444" }, // vermelho
+];
+
+function KanbanCard({ entrega, overlay = false }: { entrega: any; overlay?: boolean }) {
+  const router = useRouter();
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: entrega.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+  };
+
+  let borderColor = "var(--border)";
+  let borderStyle = "solid";
+  let borderWidth = "1px";
+
+  if (entrega.isRota) {
+    borderColor = "var(--accent)";
+    borderStyle = "dashed";
+    borderWidth = "1.5px";
+  } else if (entrega.notas && entrega.notas.length > 1) {
+    borderColor = "#eab308"; // amarelo para duplicadas/múltiplas
+    borderWidth = "1.5px";
+  } else if (entrega.status === "EM_ROTA") {
+    borderColor = "#3b82f6"; // azul para em rota
+    borderWidth = "1.5px";
+  }
+
+  const border = `${borderWidth} ${borderStyle} ${borderColor}`;
+
+  const cardStyle = overlay ? {
+    background: "var(--surface2)",
+    border,
+    boxShadow: "0 20px 40px rgba(0,0,0,.5)",
+  } : {
+    ...style,
+    background: "var(--surface2)",
+    border,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded-xl p-3 cursor-grab active:cursor-grabbing transition-all
+        ${overlay ? "shadow-2xl rotate-1 scale-105" : "hover:-translate-y-0.5 hover:shadow-lg"}`}
+      {...(!overlay ? { ...attributes, ...listeners } : {})}
+      style={cardStyle}>
+
+      <div className="flex items-start justify-between mb-2">
+        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded" 
+          style={{ 
+            background: entrega.isRota ? "rgba(249,115,22,.15)" : "rgba(59,130,246,.1)", 
+            color: entrega.isRota ? "var(--accent)" : "#3b82f6" 
+          }}>
+          {entrega.isRota ? "📦 ROTA" : "📄 NF"} {entrega.notas && entrega.notas.length > 0 
+            ? entrega.notas.map((n: any) => n.numero).join(", ") 
+            : entrega.codigo}
+        </span>
+        <div className="flex items-center gap-1">
+          {entrega.dataAgendada && new Date(entrega.dataAgendada) < new Date() &&
+            !["ENTREGUE", "FINALIZADO"].includes(entrega.status) && !entrega.isRota && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded font-mono" style={{ background: "rgba(239,68,68,.2)", color: "#ef4444" }}>ATRASADO</span>
+          )}
+          {!entrega.isRota && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); router.push(`/entregas/${entrega.id}`); }}
+              className="p-0.5 rounded hover:opacity-60 transition-all"
+              style={{ color: "var(--text3)" }}>
+              <ExternalLink size={11} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <p className="text-sm font-semibold leading-tight mb-1 line-clamp-2">{entrega.razaoSocial}</p>
+      {entrega.isRota && entrega.notas && entrega.notas.length > 0 && (
+        <p className="text-[10px] font-mono mb-2 leading-tight max-w-full" style={{ color: "var(--text3)" }}>
+          <span className="font-bold">NFs:</span> {entrega.notas.map((n: any) => n.numero).join(", ")}
+        </p>
+      )}
+      <p className="text-xs mb-3 flex items-center gap-1" style={{ color: "var(--text3)" }}>
+        📍 {entrega.cidade}{entrega.uf ? `, ${entrega.uf}` : ""}
+      </p>
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {entrega.motorista && (
+            <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: "var(--text)" }}>
+              <User size={10} style={{ color: "var(--text2)" }} /> {entrega.motorista.nome.split(" ")[0]}
+            </span>
+          )}
+          {entrega.valorMotorista > 0 && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: "rgba(16,185,129,.15)", color: "#10b981" }}>
+              {formatCurrency(entrega.valorMotorista)}
+            </span>
+          )}
+        </div>
+        <span className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>{formatWeight(entrega.pesoTotal)}</span>
+      </div>
+    </div>
+  );
+}
+
+export default function KanbanPage() {
+  const [entregas, setEntregas] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const res = await fetch("/api/kanban");
+    const rawData = await res.json();
+    
+    if (Array.isArray(rawData)) {
+      const processed: any[] = [];
+      const groupedRotas: Record<string, any> = {};
+
+      for (const e of rawData) {
+        if (e.rotaId) {
+          if (!groupedRotas[e.rotaId]) {
+            groupedRotas[e.rotaId] = {
+              id: `rota_${e.rotaId}`,
+              status: e.status, // Rota card maps to current tracking status
+              isRota: true,
+              codigo: e.rota?.codigo || e.rotaId.substring(0, 5),
+              razaoSocial: "",
+              cidade: "Múltiplos Destinos",
+              uf: "",
+              pesoTotal: 0,
+              _count: { notas: 0 },
+              notas: [],
+              motorista: e.motorista,
+              valorMotorista: e.rota?.valorMotorista || 0,
+              entregasCount: 0,
+            };
+          }
+          const r = groupedRotas[e.rotaId];
+          r.pesoTotal += e.pesoTotal || 0;
+          r._count.notas += e._count?.notas || 0;
+          r.entregasCount++;
+          if (e.notas) r.notas.push(...e.notas);
+        } else {
+          processed.push(e);
+        }
+      }
+
+      for (const r of Object.values(groupedRotas)) {
+        r.razaoSocial = `${r.entregasCount} Entregas Vinculadas na Rota`;
+        processed.push(r);
+      }
+      setEntregas(processed);
+    } else {
+      setEntregas([]);
+    }
+    
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(event.active.id as string);
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over) return;
+
+    // over.id can be either a column key or another card id
+    // Check column first, then find which column the target card belongs to
+    let targetColKey = COLS.find((c) => c.key === over.id)?.key;
+    if (!targetColKey) {
+      // dropped on a card — find which column that card is in
+      const targetCard = entregas.find((e) => e.id === over.id);
+      targetColKey = targetCard?.status;
+    }
+    if (!targetColKey) return;
+
+    const entrega = entregas.find((e) => e.id === active.id);
+    if (!entrega || entrega.status === targetColKey) return;
+
+    setEntregas((prev) => prev.map((e) => e.id === active.id ? { ...e, status: targetColKey } : e));
+
+    try {
+      const res = await fetch("/api/kanban", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: active.id, status: targetColKey }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`Movido para ${COLS.find((c) => c.key === targetColKey)?.label}`);
+    } catch {
+      toast.error("Erro ao atualizar status");
+      setEntregas((prev) => prev.map((e) => e.id === active.id ? { ...e, status: entrega.status } : e));
+    }
+  }
+
+  const activeEntrega = entregas.find((e) => e.id === activeId);
+  const grouped = COLS.reduce((acc, col) => {
+    acc[col.key] = entregas.filter((e) => e.status === col.key);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  if (loading) return <><Topbar title="Kanban Operacional" /><Loading /></>;
+
+  return (
+    <>
+      <Topbar
+        title="Kanban Operacional"
+        subtitle={`${entregas.length} entregas em andamento`}
+        actions={
+          <Button variant="ghost" size="sm" onClick={fetchData}>
+            <RefreshCw size={13} /> Atualizar
+          </Button>
+        }
+      />
+
+      <div className="flex-1 overflow-x-auto p-4">
+        <DndContext sensors={sensors} collisionDetection={closestCenter}
+          onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <div className="flex gap-3 h-full" style={{ minWidth: "max-content" }}>
+            {COLS.map((col) => {
+              const colEntregas = grouped[col.key] || [];
+              return (
+                <ColDropZone key={col.key} col={col} entregas={colEntregas} colKey={col.key}>
+                  <SortableContext items={colEntregas.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                    {colEntregas.map((e) => <KanbanCard key={e.id} entrega={e} />)}
+                  </SortableContext>
+                </ColDropZone>
+              );
+            })}
+          </div>
+
+          <DragOverlay>
+            {activeEntrega ? <KanbanCard entrega={activeEntrega} overlay /> : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
+    </>
+  );
+}
+
+function ColDropZone({ col, entregas, colKey, children }: {
+  col: (typeof COLS)[0]; entregas: any[]; colKey: string; children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: colKey });
+
+  return (
+    <div className="flex flex-col rounded-xl transition-all"
+      style={{
+        width: "260px",
+        minWidth: "260px",
+        background: isOver ? "rgba(249,115,22,.03)" : "var(--surface)",
+        border: `1px solid ${isOver ? "rgba(249,115,22,.3)" : "var(--border)"}`,
+      }}>
+      {/* Header */}
+      <div className="px-4 py-3 flex items-center justify-between flex-shrink-0"
+        style={{ borderBottom: "1px solid var(--border)" }}>
+        <div className="flex items-center gap-2 font-head text-[13px] font-bold" style={{ color: col.color }}>
+          <span>{col.icon}</span> {col.label}
+        </div>
+        <span className="font-mono text-[11px] px-2 py-0.5 rounded-full"
+          style={{ background: "var(--surface2)", color: "var(--text3)", border: "1px solid var(--border)" }}>
+          {entregas.length}
+        </span>
+      </div>
+
+      {/* Colored top accent */}
+      <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-xl" style={{ background: col.color }} />
+
+      {/* Cards */}
+      <div ref={setNodeRef} className="flex-1 overflow-y-auto p-3 space-y-2.5" style={{ minHeight: "120px", maxHeight: "calc(100vh - 200px)" }}>
+        {children}
+        {entregas.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-10 gap-2" style={{ color: "var(--text3)" }}>
+            <span className="text-2xl opacity-20">{col.icon}</span>
+            <span className="text-xs">Arraste aqui</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

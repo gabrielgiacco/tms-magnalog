@@ -1,0 +1,382 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}
+
+enum UserRole {
+  ADMIN
+  FINANCEIRO
+  OPERACIONAL
+  CLIENTE
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          UserRole  @default(OPERACIONAL)
+  ativo         Boolean   @default(true)
+  aprovado      Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  fornecedoresAutorizados FornecedorAutorizado[]
+  qualidadeRegistrada QualidadeOperacional[] @relation("AdminQualidade")
+}
+
+model FornecedorAutorizado {
+  id           String @id @default(cuid())
+  userId       String
+  cnpjEmitente String
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, cnpjEmitente])
+}
+
+enum TipoVeiculo {
+  VUC
+  TRES_QUARTOS
+  TOCO
+  TRUCK
+  CARRETA
+  BITRUCK
+}
+
+model Veiculo {
+  id           String      @id @default(cuid())
+  placa        String      @unique
+  tipo         TipoVeiculo
+  modelo       String?
+  ano          Int?
+  capacidadeKg Float?
+  ativo        Boolean     @default(true)
+  motoristaId  String?     // Vinculo de motorista padrão
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  motorista    Motorista?  @relation(fields: [motoristaId], references: [id])
+  entregas     Entrega[]
+  rotas        Rota[]
+}
+
+model Motorista {
+  id           String    @id @default(cuid())
+  nome         String
+  cpf          String?   @unique
+  cnh          String?
+  categoriaCnh String?
+  telefone     String?
+  ativo        Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  veiculos     Veiculo[]
+  entregas     Entrega[]
+  rotas        Rota[]
+}
+
+model Cliente {
+  id          String    @id @default(cuid())
+  cnpj        String    @unique
+  razaoSocial String
+  fantasia    String?
+  email       String?
+  telefone    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  entregas    Entrega[]
+}
+
+enum StatusRota {
+  PLANEJADA
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+model Rota {
+  id          String     @id @default(cuid())
+  codigo      String     @unique
+  data        DateTime
+  motoristaId String?
+  veiculoId   String?
+  pesoTotal   Float      @default(0)
+  volumeTotal Int        @default(0)
+  valorMotorista Float   @default(0)
+  valorSaida     Float   @default(0)
+  adiantamentoMotorista Float @default(0)
+  dataAdiantamento DateTime?
+  descontosMotorista Float @default(0)
+  saldoMotorista Float   @default(0)
+  dataPagamentoSaldo DateTime?
+  statusCanhoto  String  @default("PENDENTE")
+  status      StatusRota @default(PLANEJADA)
+  observacoes String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  motorista   Motorista? @relation(fields: [motoristaId], references: [id])
+  veiculo     Veiculo?   @relation(fields: [veiculoId], references: [id])
+  entregas    Entrega[]
+  contasPagar ContaPagar[]
+  qualidade   QualidadeOperacional?
+}
+
+enum StatusEntrega {
+  PROGRAMADO
+  EM_SEPARACAO
+  CARREGADO
+  EM_ROTA
+  ENTREGUE
+  FINALIZADO
+  OCORRENCIA
+}
+
+model Entrega {
+  id               String        @id @default(cuid())
+  codigo           String
+  clienteId        String?
+  cnpj             String
+  razaoSocial      String
+  cidade           String
+  uf               String?
+  endereco         String?
+  bairro           String?
+  cep              String?
+  dataChegada      DateTime?
+  dataAgendada     DateTime?
+  dataEntrega      DateTime?
+  motoristaId      String?
+  veiculoId        String?
+  rotaId           String?
+  chaveAcesso      String?       @db.Text
+  pesoTotal        Float         @default(0)
+  volumeTotal      Int           @default(0)
+  status           StatusEntrega @default(PROGRAMADO)
+  observacoes      String?
+  // Receitas (Faturamento)
+  valorFrete       Float     @default(0)
+  valorDescarga    Float     @default(0)
+  valorArmazenagem Float     @default(0)
+  diasArmazenagem  Int       @default(0)
+  
+  // Custos e Acerto do Motorista Terceiro (Novo Controle Financeiro)
+  valorMotorista        Float     @default(0) // Valor combinado para a viagem
+  valorSaida            Float     @default(0) // Pedágios, Vales de Saída
+  adiantamentoMotorista Float     @default(0) // $ Adiantado
+  dataAdiantamento      DateTime?             // Data do adiantamento
+  descontosMotorista    Float     @default(0) // Avarias, faltas, etc.
+  saldoMotorista        Float     @default(0) // (Combinado - Saida - Adiantamento - Descontos)
+  dataPagamentoSaldo    DateTime?             // Quitação do Terceiro
+  statusCanhoto         String    @default("PENDENTE") // PENDENTE ou RECEBIDO
+
+  // Legado (se ainda em uso)
+  adiantamento     Float     @default(0)
+  dataPagamento    DateTime?
+  saldoPendente    Float         @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  cliente          Cliente?      @relation(fields: [clienteId], references: [id])
+  motorista        Motorista?    @relation(fields: [motoristaId], references: [id])
+  veiculo          Veiculo?      @relation(fields: [veiculoId], references: [id])
+  rota             Rota?         @relation(fields: [rotaId], references: [id])
+  faturaId         String?
+  fatura           Fatura?       @relation(fields: [faturaId], references: [id])
+  notas            NotaFiscal[]
+  ocorrencias      Ocorrencia[]
+  contasPagar      ContaPagar[]
+  qualidade        QualidadeOperacional?
+
+  @@index([cnpj])
+  @@index([status])
+  @@index([rotaId])
+  @@index([faturaId])
+  @@index([dataAgendada])
+}
+
+model NotaFiscal {
+  id                String    @id @default(cuid())
+  chaveAcesso       String    @unique
+  numero            String
+  serie             String?
+  emitenteCnpj      String
+  emitenteRazao     String
+  destinatarioCnpj  String
+  destinatarioRazao String
+  cidade            String?
+  uf                String?
+  endereco          String?
+  bairro            String?
+  cep               String?
+  volumes           Int       @default(0)
+  pesoBruto         Float     @default(0)
+  valorNota         Float     @default(0)
+  dataEmissao       DateTime?
+  entregaId         String?
+  xmlOriginal       String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  entrega           Entrega?  @relation(fields: [entregaId], references: [id])
+  cteId             String?
+  cte               CTe?      @relation(fields: [cteId], references: [id])
+  
+  @@index([emitenteCnpj])
+  @@index([destinatarioCnpj])
+  @@index([entregaId])
+  @@index([cteId])
+}
+
+model Ocorrencia {
+  id          String   @id @default(cuid())
+  entregaId   String
+  tipo        String
+  descricao   String
+  resolucao   String?
+  resolvida   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  entrega     Entrega  @relation(fields: [entregaId], references: [id], onDelete: Cascade)
+}
+
+model CTe {
+  id               String       @id @default(cuid())
+  chaveAcesso      String       @unique
+  numero           String
+  serie            String?
+  dataEmissao      DateTime?
+  valorReceber     Float        @default(0)
+  valorPedagio     Float        @default(0)
+  valorImpostos    Float        @default(0)
+  emitenteCnpj     String
+  emitenteNome     String?
+  tomadorCnpj      String
+  tomadorNome      String?
+  notas            NotaFiscal[]
+  faturaId         String?
+  fatura           Fatura?      @relation(fields: [faturaId], references: [id])
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([tomadorCnpj])
+  @@index([faturaId])
+}
+
+enum StatusFatura {
+  ABERTA
+  PAGA
+  CANCELADA
+}
+
+model Fatura {
+  id               String       @id @default(cuid())
+  numero           String       @unique
+  clienteCnpj      String
+  clienteNome      String
+  valorFretes      Float        @default(0)
+  valorReembolsos  Float        @default(0)
+  valorTotal       Float        @default(0)
+  dataEmissao      DateTime     @default(now())
+  dataVencimento   DateTime
+  status           StatusFatura @default(ABERTA)
+  observacoes      String?      @db.Text
+  ctes             CTe[]
+  entregas         Entrega[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([clienteCnpj])
+}
+
+enum TipoContaPagar {
+  MOTORISTA
+  DESCARGA
+  ABASTECIMENTO
+  PEDAGIO
+  OUTROS
+}
+
+enum StatusContaPagar {
+  PENDENTE
+  PAGO
+  CANCELADO
+}
+
+model ContaPagar {
+  id               String           @id @default(cuid())
+  tipo             TipoContaPagar
+  descricao        String
+  valor            Float
+  dataVencimento   DateTime
+  dataPagamento    DateTime?
+  status           StatusContaPagar @default(PENDENTE)
+  favorecido       String?          // Quem vai receber (Motorista, Chapa de Descarga)
+  rotaId           String?
+  entregaId        String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  rota             Rota?            @relation(fields: [rotaId], references: [id], onDelete: Cascade)
+  entrega          Entrega?         @relation(fields: [entregaId], references: [id], onDelete: Cascade)
+
+  @@index([rotaId])
+  @@index([entregaId])
+}
+
+model QualidadeOperacional {
+  id                   String   @id @default(cuid())
+  entregaId           String?  @unique
+  rotaId              String?  @unique
+  conferenciaCorreta   Boolean  @default(true)
+  carregamentoCorreto  Boolean  @default(true)
+  houveAvaria         Boolean  @default(false)
+  organizacaoGeral     Boolean  @default(true)
+  observacoes          String?  @db.Text
+  pontuacao            Int      @default(40)
+  adminId              String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  entrega              Entrega? @relation(fields: [entregaId], references: [id], onDelete: Cascade)
+  rota                 Rota?    @relation(fields: [rotaId], references: [id], onDelete: Cascade)
+  admin                User     @relation("AdminQualidade", fields: [adminId], references: [id])
+
+  @@index([entregaId])
+  @@index([rotaId])
+  @@index([adminId])
+}

@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tms
+      POSTGRES_PASSWORD: tms123
+      POSTGRES_DB: tms_magnalog
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tms -d tms_magnalog"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: tms-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tms:tms123@postgres:5432/tms_magnalog
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-changeme-in-production}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    ports:
+      - "3000:3000"
+    command: >
+      sh -c "npx prisma migrate deploy && npx prisma db seed && node server.js"
+
+volumes:
+  postgres_data:

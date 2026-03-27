@@ -1,0 +1,61 @@
+import { withAuth } from "next-auth/middleware";
+import { NextResponse } from "next/server";
+
+export default withAuth(
+  function middleware(req) {
+    const token = req.nextauth.token;
+    const pathname = req.nextUrl.pathname;
+
+    // Portal do cliente — só CLIENTE aprovado ou ADMIN
+    if (pathname.startsWith("/portal")) {
+      if (token?.role !== "CLIENTE" && token?.role !== "ADMIN") {
+        return NextResponse.redirect(new URL("/login", req.url));
+      }
+      return NextResponse.next();
+    }
+
+    // Cliente não aprovado
+    if (token?.role === "CLIENTE" && !(token as any).aprovado) {
+      return NextResponse.redirect(new URL("/aguardando-aprovacao", req.url));
+    }
+
+    // Financeiro — bloqueia OPERACIONAL
+    if (pathname.startsWith("/financeiro") && token?.role === "OPERACIONAL") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
+    // Relatórios — bloqueia OPERACIONAL
+    if (pathname.startsWith("/relatorios") && token?.role === "OPERACIONAL") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
+    // Usuários — só ADMIN
+    if (pathname.startsWith("/usuarios") && token?.role !== "ADMIN") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
+    return NextResponse.next();
+  },
+  {
+    callbacks: {
+      authorized: ({ token }) => !!token,
+    },
+  }
+);
+
+export const config = {
+  matcher: [
+    "/dashboard/:path*",
+    "/entregas/:path*",
+    "/importacao/:path*",
+    "/kanban/:path*",
+    "/rotas/:path*",
+    "/motoristas/:path*",
+    "/veiculos/:path*",
+    "/financeiro/:path*",
+    "/relatorios/:path*",
+    "/notas/:path*",
+    "/usuarios/:path*",
+    "/portal/:path*",
+  ],
+};
