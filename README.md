@@ -11,8 +11,6 @@ cp .env.example .env
 npx prisma migrate dev --name init
 npx prisma db seed
 npm run dev
-# → http://localhost:3000
-# Login: admin@magnalog.com.br / admin123
 ```
 
 ## Stack
@@ -34,10 +32,7 @@ npm run dev
 - Busca global Ctrl+K
 - Usuários com controle por role (Admin/Financeiro/Operacional/Cliente)
 
-## Usuários padrão
-- admin@magnalog.com.br / admin123
-- operacional@magnalog.com.br / op123
-- financeiro@magnalog.com.br / op123
+
 
 ## Deploy Vercel
 ```bash
