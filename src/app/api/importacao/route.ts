@@ -4,7 +4,6 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { parseNotaFiscalXML } from "@/lib/xml-parser";
 import { parseCTeXML } from "@/lib/cte-parser";
-import { generateCodigoEntrega } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
   try {
@@ -175,6 +174,7 @@ export async function POST(req: NextRequest) {
           where: {
             cnpj: nota.destinatarioCnpj,
             status: { notIn: ["ENTREGUE", "FINALIZADO", "OCORRENCIA"] },
+            notas: { some: { emitenteCnpj: nota.emitenteCnpj } },
           },
           orderBy: { createdAt: "desc" },
         });

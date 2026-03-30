@@ -67,6 +67,7 @@ export default function EntregasPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [showFiltros, setShowFiltros] = useState(false);
+  const [filterCliente, setFilterCliente] = useState("");
   const [filterDataInicio, setFilterDataInicio] = useState("");
   const [filterDataFim, setFilterDataFim] = useState("");
   const [filterFornecedor, setFilterFornecedor] = useState("");
@@ -92,7 +93,10 @@ export default function EntregasPage() {
 
   // Debounce search
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 400);
     return () => clearTimeout(t);
   }, [search]);
 
@@ -106,19 +110,20 @@ export default function EntregasPage() {
     if (filterStatus) params.set("status", filterStatus);
     if (filterCidade) params.set("cidade", filterCidade);
     if (debouncedSearch) params.set("cliente", debouncedSearch);
+    if (filterCliente) params.set("clienteNome", filterCliente);
     if (filterDataInicio) params.set("dataInicio", filterDataInicio + "T00:00:00");
     if (filterDataFim) params.set("dataFim", filterDataFim + "T23:59:59");
     if (filterFornecedor) params.set("fornecedor", filterFornecedor);
     if (filterVolume) params.set("volume", filterVolume);
     if (sortBy && sortOrder) { params.set("sortBy", sortBy); params.set("sortOrder", sortOrder); }
 
-    const res = await fetch(`/api/entregas?${params}`);
+    const res = await fetch(`/api/entregas?${params}`, { cache: "no-store" });
     const data = await res.json();
     setEntregas(data.entregas || []);
     setTotal(data.total || 0);
     setPages(data.pages || 1);
     setLoading(false);
-  }, [page, filterStatus, filterCidade, debouncedSearch, mostrarFinalizados, filterDataInicio, filterDataFim, filterFornecedor, filterVolume, sortBy, sortOrder]);
+  }, [page, filterStatus, filterCidade, debouncedSearch, mostrarFinalizados, filterCliente, filterDataInicio, filterDataFim, filterFornecedor, filterVolume, sortBy, sortOrder]);
 
   useEffect(() => { fetchEntregas(); }, [fetchEntregas]);
 
@@ -249,6 +254,10 @@ export default function EntregasPage() {
           {showFiltros && (
             <div className="flex flex-wrap gap-3 mt-4 pt-4 items-end border-t border-gray-100">
                <div>
+                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Cliente</span>
+                 <Input placeholder="Razão social ou CNPJ" value={filterCliente} onChange={(e) => { setFilterCliente(e.target.value); setPage(1); }} className="h-9 min-w-[200px]" />
+               </div>
+               <div>
                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Data Início</span>
                  <Input type="date" value={filterDataInicio} onChange={(e) => { setFilterDataInicio(e.target.value); setPage(1); }} className="h-9 min-w-[130px]" />
                </div>
@@ -264,7 +273,7 @@ export default function EntregasPage() {
                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Volume Específico</span>
                  <Input type="number" placeholder="Ex: 5" value={filterVolume} onChange={(e) => { setFilterVolume(e.target.value); setPage(1); }} className="h-9 w-32" />
                </div>
-               <Button variant="ghost" size="sm" className="h-9 text-xs text-gray-400" onClick={() => { setFilterDataInicio(""); setFilterDataFim(""); setFilterFornecedor(""); setFilterVolume(""); setPage(1); }}>
+               <Button variant="ghost" size="sm" className="h-9 text-xs text-gray-400" onClick={() => { setFilterCliente(""); setFilterDataInicio(""); setFilterDataFim(""); setFilterFornecedor(""); setFilterVolume(""); setPage(1); }}>
                  Limpar Filtros
                </Button>
             </div>

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { generateCodigoEntrega } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,6 +22,7 @@ export async function GET(req: NextRequest) {
     const dataInicio = searchParams.get("dataInicio");
     const dataFim = searchParams.get("dataFim");
     const apenasAgendadas = searchParams.get("apenasAgendadas") === "true";
+    const clienteNome = searchParams.get("clienteNome");
     const fornecedor = searchParams.get("fornecedor");
     const volume = searchParams.get("volume");
     const sortBy = searchParams.get("sortBy");
@@ -34,11 +36,20 @@ export async function GET(req: NextRequest) {
     }
     if (status) where.status = status;
     if (cliente) {
-      where.OR = [
+      const orConditions: any[] = [
         { razaoSocial: { contains: cliente, mode: "insensitive" } },
-        { cnpj: { contains: cliente.replace(/\D/g, "") } },
+        { cidade: { contains: cliente, mode: "insensitive" } },
+        { codigo: { contains: cliente, mode: "insensitive" } },
         { notas: { some: { numero: { contains: cliente } } } },
+        { notas: { some: { emitenteRazao: { contains: cliente, mode: "insensitive" } } } },
+        { notas: { some: { chaveAcesso: { contains: cliente } } } },
       ];
+      const digits = cliente.replace(/\D/g, "");
+      if (digits.length > 0) orConditions.push({ cnpj: { contains: digits } });
+      where.OR = orConditions;
+    }
+    if (clienteNome) {
+      where.razaoSocial = { contains: clienteNome, mode: "insensitive" };
     }
     if (cidade) where.cidade = { contains: cidade, mode: "insensitive" };
     if (rotaId) where.rotaId = rotaId;
