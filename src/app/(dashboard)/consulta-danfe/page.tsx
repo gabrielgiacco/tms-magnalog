@@ -18,38 +18,89 @@ import {
   X,
   ZoomIn,
   ZoomOut,
+  Key,
+  Loader2,
 } from "lucide-react";
 
+type InputMode = "chave" | "xml";
+
 export default function ConsultaDanfePage() {
+  const [mode, setMode] = useState<InputMode>("chave");
   const [dragging, setDragging] = useState(false);
   const [danfeData, setDanfeData] = useState<DanfeData | null>(null);
   const [xmlContent, setXmlContent] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(100);
+  const [chave, setChave] = useState("");
+  const [loading, setLoading] = useState(false);
   const danfeRef = useRef<HTMLDivElement>(null);
 
-  const processFile = useCallback(async (file: File) => {
-    setError(null);
-    setDanfeData(null);
-
-    if (!file.name.toLowerCase().endsWith(".xml")) {
-      setError("Por favor, selecione um arquivo XML de NF-e.");
-      return;
-    }
-
+  const processXml = useCallback((content: string, name: string) => {
     try {
-      const content = await file.text();
-      setXmlContent(content);
-      setFileName(file.name);
       const parsed = parseDanfeXML(content);
+      setXmlContent(content);
+      setFileName(name);
       setDanfeData(parsed);
-      toast.success("XML processado com sucesso!");
+      setError(null);
+      toast.success("DANFE carregado com sucesso!");
     } catch (e: any) {
       setError(e.message || "Erro ao processar o XML");
       toast.error("Erro ao processar XML");
     }
   }, []);
+
+  const processFile = useCallback(
+    async (file: File) => {
+      setError(null);
+      setDanfeData(null);
+
+      if (!file.name.toLowerCase().endsWith(".xml")) {
+        setError("Por favor, selecione um arquivo XML de NF-e.");
+        return;
+      }
+
+      const content = await file.text();
+      processXml(content, file.name);
+    },
+    [processXml]
+  );
+
+  async function handleConsultaChave() {
+    const clean = chave.replace(/\s/g, "");
+    if (!/^\d{44}$/.test(clean)) {
+      setError("A chave de acesso deve conter exatamente 44 dígitos numéricos.");
+      toast.error("Chave de acesso inválida");
+      return;
+    }
+
+    setError(null);
+    setDanfeData(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/consulta-danfe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chave: clean }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Erro ao consultar NF-e.");
+        toast.error(data.error || "Erro ao consultar NF-e");
+        return;
+      }
+
+      processXml(data.xml, `NFe_${clean}.xml`);
+    } catch (e: any) {
+      setError("Erro de conexão ao consultar NF-e.");
+      toast.error("Erro de conexão");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -85,16 +136,17 @@ export default function ConsultaDanfePage() {
     setFileName("");
     setError(null);
     setZoom(100);
+    setChave("");
   }
 
   return (
     <>
       <Topbar
         title="Consulta DANFE"
-        subtitle="Visualize e imprima o DANFE a partir do XML da NF-e"
+        subtitle="Visualize e imprima o DANFE a partir da chave de acesso ou XML"
       />
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        {/* Upload area - shown when no data */}
+        {/* Input area - shown when no data */}
         {!danfeData && (
           <div className="max-w-2xl mx-auto space-y-5">
             {/* Hero */}
@@ -109,68 +161,162 @@ export default function ConsultaDanfePage() {
                 Visualizador de DANFE
               </h2>
               <p className="text-sm" style={{ color: "var(--text2)" }}>
-                Faça upload do XML da Nota Fiscal Eletronica para visualizar e
-                imprimir o DANFE
+                Consulte pela chave de acesso ou faça upload do XML da NF-e
               </p>
             </div>
 
-            {/* Drop zone */}
+            {/* Mode Tabs */}
             <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={handleDrop}
-              className="relative rounded-2xl transition-all cursor-pointer"
-              style={{
-                border: `2px dashed ${dragging ? "var(--accent)" : "var(--border2)"}`,
-                background: dragging
-                  ? "rgba(249,115,22,.05)"
-                  : "var(--surface)",
-                minHeight: "220px",
-              }}
-              onClick={() =>
-                document.getElementById("danfe-xml-input")?.click()
-              }
+              className="flex rounded-xl p-1 gap-1"
+              style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}
             >
-              <input
-                id="danfe-xml-input"
-                type="file"
-                accept=".xml,text/xml"
-                className="hidden"
-                onChange={handleFileSelect}
-              />
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                <Upload size={48} className="text-gray-400 mb-2" />
-                <p className="text-gray-600 font-head font-medium">
-                  Arraste o arquivo XML aqui ou clique para selecionar
-                </p>
-                <p
-                  className="text-sm font-mono"
-                  style={{ color: "var(--text3)" }}
-                >
-                  Aceita XML de NF-e (procNFe ou NFe)
-                </p>
-                <span
-                  className="text-[11px] px-3 py-1 rounded-full font-bold font-mono mt-2"
-                  style={{ background: "var(--accent)", color: "white" }}
-                >
-                  XML NF-e
-                </span>
-              </div>
+              <button
+                onClick={() => { setMode("chave"); setError(null); }}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold font-head transition-all"
+                style={
+                  mode === "chave"
+                    ? { background: "var(--surface)", color: "var(--accent)", boxShadow: "0 1px 3px rgba(0,0,0,.08)" }
+                    : { color: "var(--text3)" }
+                }
+              >
+                <Key size={16} />
+                Chave de Acesso
+              </button>
+              <button
+                onClick={() => { setMode("xml"); setError(null); }}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold font-head transition-all"
+                style={
+                  mode === "xml"
+                    ? { background: "var(--surface)", color: "var(--accent)", boxShadow: "0 1px 3px rgba(0,0,0,.08)" }
+                    : { color: "var(--text3)" }
+                }
+              >
+                <Upload size={16} />
+                Upload XML
+              </button>
             </div>
+
+            {/* Chave de Acesso Input */}
+            {mode === "chave" && (
+              <Card className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold font-head mb-2 block" style={{ color: "var(--text2)" }}>
+                    Chave de Acesso (44 dígitos)
+                  </label>
+                  <input
+                    type="text"
+                    value={chave}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, "").slice(0, 44);
+                      setChave(v);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !loading) handleConsultaChave();
+                    }}
+                    placeholder="0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000"
+                    className="w-full px-4 py-3 rounded-xl text-sm font-mono tracking-widest outline-none transition-all"
+                    style={{
+                      background: "var(--surface2)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                    }}
+                    maxLength={44}
+                    autoFocus
+                  />
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>
+                      {chave.length}/44 dígitos
+                    </span>
+                    {chave.length === 44 && (
+                      <span className="text-[10px] font-bold" style={{ color: "#059669" }}>
+                        Chave completa
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  onClick={handleConsultaChave}
+                  disabled={chave.length !== 44 || loading}
+                  className="w-full"
+                  style={{
+                    opacity: chave.length !== 44 || loading ? 0.5 : 1,
+                  }}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Consultando...
+                    </>
+                  ) : (
+                    <>
+                      <Search size={16} />
+                      Consultar DANFE
+                    </>
+                  )}
+                </Button>
+              </Card>
+            )}
+
+            {/* XML Upload */}
+            {mode === "xml" && (
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
+                className="relative rounded-2xl transition-all cursor-pointer"
+                style={{
+                  border: `2px dashed ${dragging ? "var(--accent)" : "var(--border2)"}`,
+                  background: dragging ? "rgba(249,115,22,.05)" : "var(--surface)",
+                  minHeight: "220px",
+                }}
+                onClick={() =>
+                  document.getElementById("danfe-xml-input")?.click()
+                }
+              >
+                <input
+                  id="danfe-xml-input"
+                  type="file"
+                  accept=".xml,text/xml"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                  <Upload size={48} className="text-gray-400 mb-2" />
+                  <p className="text-gray-600 font-head font-medium">
+                    Arraste o arquivo XML aqui ou clique para selecionar
+                  </p>
+                  <p
+                    className="text-sm font-mono"
+                    style={{ color: "var(--text3)" }}
+                  >
+                    Aceita XML de NF-e (procNFe ou NFe)
+                  </p>
+                  <span
+                    className="text-[11px] px-3 py-1 rounded-full font-bold font-mono mt-2"
+                    style={{ background: "var(--accent)", color: "white" }}
+                  >
+                    XML NF-e
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Error */}
             {error && (
-              <Card className="flex items-start gap-3" style={{ borderColor: "rgba(239,68,68,.3)" }}>
+              <Card
+                className="flex items-start gap-3"
+                style={{ borderColor: "rgba(239,68,68,.3)" }}
+              >
                 <FileX
                   size={20}
                   style={{ color: "#ef4444", flexShrink: 0, marginTop: 2 }}
                 />
                 <div>
                   <div className="text-sm font-bold text-red-400 mb-1">
-                    Erro ao processar XML
+                    Erro ao consultar DANFE
                   </div>
                   <div className="text-xs" style={{ color: "var(--text2)" }}>
                     {error}
@@ -183,6 +329,11 @@ export default function ConsultaDanfePage() {
             <div className="grid grid-cols-3 gap-4">
               {[
                 {
+                  icon: Key,
+                  title: "Chave de Acesso",
+                  desc: "Consulte com os 44 dígitos",
+                },
+                {
                   icon: Eye,
                   title: "Visualização",
                   desc: "Layout fiel ao DANFE oficial",
@@ -191,11 +342,6 @@ export default function ConsultaDanfePage() {
                   icon: Printer,
                   title: "Impressão",
                   desc: "Imprima direto do navegador",
-                },
-                {
-                  icon: Download,
-                  title: "Download",
-                  desc: "Baixe o XML original",
                 },
               ].map((f) => (
                 <div
