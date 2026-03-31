@@ -52,10 +52,29 @@ export async function PATCH(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (user.role !== "ADMIN") return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
-
   const body = await req.json();
-  const { id, fornecedoresAutorizados, ...data } = body;
+  const { id, fornecedoresAutorizados, senhaAtual, ...data } = body;
+
+  // Usuário não-admin só pode alterar a própria senha
+  if (user.role !== "ADMIN") {
+    if (id !== user.id || Object.keys(data).some((k) => k !== "password")) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    }
+  }
+
+  // Se está alterando senha, fazer hash
+  if (data.password) {
+    // Se não é admin OU está alterando a própria senha, validar senha atual
+    if (id === user.id && senhaAtual) {
+      const dbUser = await prisma.user.findUnique({ where: { id }, select: { password: true } });
+      if (!dbUser?.password || !(await bcrypt.compare(senhaAtual, dbUser.password))) {
+        return NextResponse.json({ error: "Senha atual incorreta" }, { status: 400 });
+      }
+    } else if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Senha atual é obrigatória" }, { status: 400 });
+    }
+    data.password = await bcrypt.hash(data.password, 10);
+  }
 
   const updated = await prisma.user.update({ where: { id }, data });
 

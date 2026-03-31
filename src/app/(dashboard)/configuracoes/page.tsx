@@ -14,6 +14,10 @@ export default function ConfiguracoesPage() {
   const [saving, setSaving] = useState(false);
 
   async function handleSenha() {
+    if (!senhaForm.atual) {
+      toast.error("Informe a senha atual");
+      return;
+    }
     if (!senhaForm.nova || senhaForm.nova.length < 6) {
       toast.error("Nova senha deve ter pelo menos 6 caracteres");
       return;
@@ -27,13 +31,16 @@ export default function ConfiguracoesPage() {
       const res = await fetch("/api/usuarios", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: user?.id, password: senhaForm.nova }),
+        body: JSON.stringify({ id: user?.id, senhaAtual: senhaForm.atual, password: senhaForm.nova }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Erro ao alterar senha");
+      }
       toast.success("Senha alterada com sucesso");
       setSenhaForm({ atual: "", nova: "", confirmar: "" });
-    } catch {
-      toast.error("Erro ao alterar senha");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao alterar senha");
     } finally {
       setSaving(false);
     }
