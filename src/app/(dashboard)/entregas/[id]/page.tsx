@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button, Card, Loading, StatusBadge, Modal, Input, Select, Textarea, ComboboxMotorista } from "@/components/ui";
 import { formatCurrency, formatDate, formatWeight, formatCNPJ } from "@/lib/utils";
-import { Copy, FileText, History, Package, MapPin, Truck, ChevronLeft, Calendar, User, Clock, CheckCircle2, AlertCircle, Trash2, ShieldCheck, DollarSign } from "lucide-react";
+import { Copy, FileText, History, Package, MapPin, Truck, ChevronLeft, Calendar, User, Clock, CheckCircle2, AlertCircle, Trash2, ShieldCheck, DollarSign, Scissors } from "lucide-react";
 import toast from "react-hot-toast";
 import { QualityScoring } from "@/components/quality/QualityScoring";
 
@@ -35,6 +35,8 @@ export default function EntregaDetailPage() {
   const [editForm, setEditForm] = useState<any>({});
   const [ocorrForm, setOcorrForm] = useState({ tipo: "ATRASO", descricao: "" });
   const [tab, setTab] = useState("info");
+  const [selectedNotas, setSelectedNotas] = useState<string[]>([]);
+  const [separando, setSeparando] = useState(false);
 
   useEffect(() => {
     fetch(`/api/entregas/${id}`).then((r) => r.json()).then((d) => { 
@@ -128,6 +130,33 @@ export default function EntregaDetailPage() {
       setOcorrForm({ tipo: "ATRASO", descricao: "" });
       toast.success("Ocorrência registrada");
     } finally { setSaving(false); }
+  }
+
+  async function handleSeparar() {
+    if (selectedNotas.length === 0) { toast.error("Selecione pelo menos uma nota"); return; }
+    if (selectedNotas.length === entrega.notas.length) { toast.error("Selecione apenas parte das notas para separar"); return; }
+    setSeparando(true);
+    try {
+      const res = await fetch(`/api/entregas/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "separar", notaIds: selectedNotas }),
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
+      const data = await res.json();
+      toast.success(`${data.notasSeparadas} nota(s) separada(s) em nova entrega`);
+      setSelectedNotas([]);
+      // Reload entrega
+      const updated = await fetch(`/api/entregas/${id}`).then((r) => r.json());
+      setEntrega(updated);
+      setEditForm(formatForEdit(updated));
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao separar notas");
+    } finally { setSeparando(false); }
+  }
+
+  function toggleNota(notaId: string) {
+    setSelectedNotas((prev) => prev.includes(notaId) ? prev.filter((id) => id !== notaId) : [...prev, notaId]);
   }
 
   const set = (k: string, v: string) => setEditForm((f: any) => ({ ...f, [k]: v }));
@@ -281,24 +310,54 @@ export default function EntregaDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              {/* Carga */}
              <Card>
-                <div className="flex items-center gap-2 mb-4">
-                   <Package size={14} className="text-accent" />
-                   <span className="text-xs font-mono uppercase tracking-widest text-slate-500">Carga</span>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Package size={14} className="text-accent" />
+                    <span className="text-xs font-mono uppercase tracking-widest text-slate-500">Carga</span>
+                    {entrega.notas?.length > 1 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--surface2)", color: "var(--text3)" }}>
+                        {entrega.notas.length} NFs
+                      </span>
+                    )}
+                  </div>
+                  {selectedNotas.length > 0 && selectedNotas.length < (entrega.notas?.length || 0) && (
+                    <Button size="sm" onClick={handleSeparar} loading={separando}>
+                      <Scissors size={13} /> Separar {selectedNotas.length} NF(s)
+                    </Button>
+                  )}
                 </div>
+                {entrega.notas?.length > 1 && (
+                  <p className="text-[10px] mb-3" style={{ color: "var(--text3)" }}>
+                    Selecione notas para separar em uma nova entrega
+                  </p>
+                )}
                 {entrega.notas?.length > 0 && (
                   <div className="space-y-2">
-                    {entrega.notas.map((nf: any) => (
-                      <div key={nf.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                        <FileText size={13} className="text-slate-400" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-semibold">NF {nf.numero}</div>
-                          <div className="text-[10px] font-mono truncate text-slate-500">{nf.emitenteRazao}</div>
+                    {entrega.notas.map((nf: any) => {
+                      const selected = selectedNotas.includes(nf.id);
+                      return (
+                        <div key={nf.id}
+                          onClick={() => entrega.notas.length > 1 && toggleNota(nf.id)}
+                          className={`flex items-center gap-3 p-2.5 rounded-lg border transition-all ${
+                            selected
+                              ? "bg-orange-50 border-orange-300 ring-1 ring-orange-200"
+                              : "bg-slate-50 border-slate-100"
+                          } ${entrega.notas.length > 1 ? "cursor-pointer hover:border-orange-200" : ""}`}>
+                          {entrega.notas.length > 1 && (
+                            <input type="checkbox" checked={selected} readOnly
+                              className="accent-orange-500 w-4 h-4 flex-shrink-0 pointer-events-none" />
+                          )}
+                          <FileText size={13} className="text-slate-400 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-semibold">NF {nf.numero}</div>
+                            <div className="text-[10px] font-mono truncate text-slate-500">{nf.emitenteRazao}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs font-mono text-emerald-600 font-bold">{formatCurrency(nf.valorNota)}</div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                           <div className="text-xs font-mono text-emerald-600 font-bold">{formatCurrency(nf.valorNota)}</div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
              </Card>
