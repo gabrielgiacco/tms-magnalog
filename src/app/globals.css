@@ -76,3 +76,281 @@ body {
 .badge-FINANCEIRO    { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
 .badge-OPERACIONAL   { background: #fdf6e3; color: #d97706; border: 1px solid #fde68a; }
 .badge-CLIENTE       { background: #f3e8ff; color: #9333ea; border: 1px solid #e9d5ff; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DANFE Styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.danfe-page-wrapper {
+  background: white;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 8mm;
+  box-shadow: 0 4px 24px rgba(0,0,0,.12);
+  border-radius: 4px;
+  margin-bottom: 24px;
+  color: #000;
+}
+
+.danfe-container {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8px;
+  line-height: 1.3;
+  color: #000;
+}
+
+.danfe-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #000;
+  margin-bottom: -1px;
+}
+
+.danfe-cell {
+  border: 1px solid #000;
+  padding: 2px 4px;
+  vertical-align: top;
+}
+
+.danfe-cell-label {
+  font-size: 6px;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  line-height: 1.2;
+  margin-bottom: 1px;
+}
+
+.danfe-cell-value {
+  font-size: 8px;
+  line-height: 1.4;
+  min-height: 12px;
+}
+
+.danfe-mono {
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.danfe-bold {
+  font-weight: bold;
+}
+
+.danfe-right {
+  text-align: right;
+}
+
+/* Header */
+.danfe-emitente-header {
+  padding: 6px 8px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.danfe-emitente-nome {
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 3px;
+}
+
+.danfe-emitente-fantasia {
+  font-size: 9px;
+  color: #333;
+  margin-bottom: 2px;
+}
+
+.danfe-emitente-endereco {
+  font-size: 7px;
+  color: #444;
+  line-height: 1.4;
+}
+
+.danfe-title-cell {
+  padding: 4px 6px !important;
+}
+
+.danfe-title {
+  font-size: 16px;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.danfe-title-sub {
+  font-size: 6px;
+  color: #555;
+  margin-top: 2px;
+}
+
+.danfe-title-op {
+  font-size: 8px;
+}
+
+.danfe-title-nf {
+  font-size: 10px;
+}
+
+.danfe-title-serie {
+  font-size: 7px;
+  color: #555;
+}
+
+.danfe-barcode-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.danfe-barcode-wrapper svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.danfe-chave {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 7px;
+  letter-spacing: 0.5px;
+  font-weight: bold;
+  margin-top: 2px;
+  word-break: break-all;
+}
+
+/* Section titles */
+.danfe-section-title {
+  background: #e8e8e8;
+  border: 1px solid #000;
+  border-bottom: none;
+  margin-bottom: -1px;
+  padding: 2px 6px;
+  font-size: 7px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Produtos */
+.danfe-produtos-table {
+  font-size: 7px;
+}
+
+.danfe-produtos-header th {
+  background: #f0f0f0;
+  border: 1px solid #000;
+  padding: 2px 3px;
+  font-size: 6px;
+  font-weight: bold;
+  text-transform: uppercase;
+  text-align: center;
+  letter-spacing: 0.2px;
+}
+
+.danfe-produto-row td {
+  border: 1px solid #000;
+  padding: 2px 3px;
+  font-size: 7px;
+  vertical-align: middle;
+}
+
+.danfe-produto-row:nth-child(even) {
+  background: #fafafa;
+}
+
+/* Duplicatas */
+.danfe-duplicatas-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.danfe-duplicata-item {
+  display: flex;
+  gap: 8px;
+  font-size: 7px;
+  padding: 2px 6px;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  background: #fafafa;
+}
+
+/* Info adicional */
+.danfe-info-text {
+  font-size: 7px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 40px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Print Styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+  /* Hide everything except DANFE */
+  body > * {
+    display: none !important;
+  }
+
+  /* Show the DANFE container */
+  #danfe-print,
+  #danfe-print * {
+    visibility: visible !important;
+  }
+
+  .danfe-page-wrapper {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 210mm !important;
+    padding: 5mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    transform: none !important;
+    display: block !important;
+  }
+
+  /* Make sure parent elements are visible */
+  body,
+  body > div,
+  body > div > div,
+  main,
+  #__next {
+    display: block !important;
+    visibility: visible !important;
+    overflow: visible !important;
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide non-DANFE elements */
+  aside,
+  nav,
+  header,
+  footer,
+  .no-print,
+  [class*="Topbar"],
+  [class*="Sidebar"] {
+    display: none !important;
+  }
+
+  /* Remove backgrounds for printing */
+  .danfe-section-title {
+    background: #e8e8e8 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .danfe-produtos-header th {
+    background: #f0f0f0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 5mm;
+  }
+}

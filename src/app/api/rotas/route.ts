@@ -34,49 +34,68 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const body = await req.json();
-  const count = await prisma.rota.count();
-  const codigo = generateCodigoRota(count + 1);
+  try {
+    const body = await req.json();
 
-  // Calcular totais das entregas se fornecidas
-  let pesoTotal = 0;
-  let volumeTotal = 0;
-  if (body.entregaIds?.length) {
-    const entregas = await prisma.entrega.findMany({
-      where: { id: { in: body.entregaIds } },
-      select: { pesoTotal: true, volumeTotal: true },
+    // Novo cálculo de código robusto (evita duplicatas se rotas forem excluídas)
+    const lastRota = await prisma.rota.findFirst({
+      orderBy: { codigo: "desc" },
     });
-    pesoTotal = entregas.reduce((s: number, e: any) => s + e.pesoTotal, 0);
-    volumeTotal = entregas.reduce((s: number, e: any) => s + e.volumeTotal, 0);
-  }
+    
+    let nextNum = 1;
+    if (lastRota?.codigo) {
+      const match = lastRota.codigo.match(/\d+/);
+      if (match) nextNum = parseInt(match[0]) + 1;
+    }
+    const codigo = generateCodigoRota(nextNum);
 
-  const rota = await prisma.rota.create({
-    data: {
-      codigo,
-      data: new Date(body.data),
-      motoristaId: body.motoristaId || null,
-      veiculoId: body.veiculoId || null,
-      pesoTotal,
-      volumeTotal,
-      valorMotorista: parseFloat(body.valorMotorista) || 0,
-      observacoes: body.observacoes,
-      status: "PLANEJADA",
-    },
-  });
+    // Calcular totais das entregas se fornecidas
+    let pesoTotal = 0;
+    let volumeTotal = 0;
+    if (body.entregaIds?.length) {
+      const entregas = await prisma.entrega.findMany({
+        where: { id: { in: body.entregaIds } },
+        select: { pesoTotal: true, volumeTotal: true },
+      });
+      pesoTotal = entregas.reduce((s: number, e: any) => s + (e.pesoTotal || 0), 0);
+      volumeTotal = entregas.reduce((s: number, e: any) => s + (e.volumeTotal || 0), 0);
+    }
 
-  // Associar entregas à rota e propagar dados
-  if (body.entregaIds?.length) {
-    await prisma.entrega.updateMany({
-      where: { id: { in: body.entregaIds } },
-      data: { 
-        rotaId: rota.id,
-        motoristaId: rota.motoristaId,
-        veiculoId: rota.veiculoId,
-        valorMotorista: rota.valorMotorista,
-        status: "CARREGADO" // Quando entra na rota, assume que está pronto pra sair
+    const rota = await prisma.rota.create({
+      data: {
+        codigo,
+        data: body.data ? new Date(body.data) : new Date(),
+        motoristaId: body.motoristaId || null,
+        veiculoId: body.veiculoId || null,
+        pesoTotal,
+        volumeTotal: Math.round(volumeTotal), // Garante que seja Int
+        valorMotorista: parseFloat(String(body.valorMotorista).replace(",", ".")) || 0,
+        observacoes: body.observacoes,
+        status: "PLANEJADA",
       },
     });
-  }
 
-  return NextResponse.json(rota, { status: 201 });
+    // Associar entregas à rota e propagar dados
+    if (body.entregaIds?.length) {
+      await prisma.entrega.updateMany({
+        where: { id: { in: body.entregaIds } },
+        data: { 
+          rotaId: rota.id,
+          motoristaId: rota.motoristaId,
+          veiculoId: rota.veiculoId,
+          valorMotorista: rota.valorMotorista,
+          status: "CARREGADO"
+        },
+      });
+    }
+
+    return NextResponse.json(rota, { status: 201 });
+  } catch (error: any) {
+    console.error("ERRO_CRIAR_ROTA:", error);
+    return NextResponse.json({ 
+      error: "Erro interno ao criar rota", 
+      details: error.message,
+      code: error.code // Prisma error codes
+    }, { status: 500 });
+  }
 }

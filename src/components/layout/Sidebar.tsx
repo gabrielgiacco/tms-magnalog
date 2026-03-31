@@ -3,11 +3,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useLayoutStore } from "@/hooks/useLayoutStore";
-import { 
-  LayoutDashboard, Package, Calendar, Users, Briefcase, FileText, 
-  Anchor, DollarSign, Settings, BarChart2, Wallet, FileUp, 
+import {
+  LayoutDashboard, Package, Calendar, Users, Briefcase, FileText,
+  Anchor, DollarSign, Settings, BarChart2, Wallet, FileUp,
   Truck, Globe, ChevronRight, Columns, Route, ShieldCheck,
-  Menu, X, ChevronLeft, ChevronRight as ChevronRightIcon
+  Menu, X, ChevronLeft, ChevronRight as ChevronRightIcon,
+  FileSearch
 } from "lucide-react";
 
 const navItems = [
@@ -16,6 +17,7 @@ const navItems = [
   { href: "/agendamentos", label: "Agendamentos", icon: Calendar, roles: ["ADMIN","FINANCEIRO","OPERACIONAL"] },
   { href: "/importacao", label: "Importar XML", icon: FileUp, roles: ["ADMIN","OPERACIONAL"] },
   { href: "/notas", label: "Notas Fiscais", icon: FileText, roles: ["ADMIN","OPERACIONAL","FINANCEIRO"] },
+  { href: "/consulta-danfe", label: "Consulta DANFE", icon: FileSearch, roles: ["ADMIN","OPERACIONAL","FINANCEIRO"] },
   { href: "/kanban", label: "Kanban", icon: Columns, roles: ["ADMIN","OPERACIONAL"] },
   { href: "/rotas", label: "Rotas", icon: Route, roles: ["ADMIN","OPERACIONAL"] },
   { href: "/frota", label: "Frota", icon: Truck, roles: ["ADMIN","OPERACIONAL","FINANCEIRO"] },

@@ -59,12 +59,17 @@ export default function RotasPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Erro ao criar rota");
+      }
       toast.success("Rota criada!");
       setShowModal(false);
       setForm({ data: "", motoristaId: "", veiculoId: "", valorMotorista: "", observacoes: "", entregaIds: [] });
       fetchRotas();
-    } catch { toast.error("Erro ao criar rota"); }
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao criar rota");
+    }
     finally { setSaving(false); }
   }
 
