@@ -25,13 +25,31 @@ export async function GET(req: NextRequest) {
   const page = parseInt(searchParams.get("page") || "1");
   const limit = 50;
   const skip = (page - 1) * limit;
-  const numero = searchParams.get("numero");
+  const busca = searchParams.get("numero");
   const status = searchParams.get("status");
 
   const where: any = {
     emitenteCnpj: { in: cnpjs },
   };
-  if (numero) where.numero = { contains: numero };
+
+  if (busca) {
+    const orConditions: any[] = [
+      { numero: { contains: busca } },
+      { destinatarioRazao: { contains: busca, mode: "insensitive" } },
+      { emitenteRazao: { contains: busca, mode: "insensitive" } },
+      { cidade: { contains: busca, mode: "insensitive" } },
+      { chaveAcesso: { contains: busca } },
+    ];
+    const digits = busca.replace(/\D/g, "");
+    if (digits.length > 0) {
+      orConditions.push({ destinatarioCnpj: { contains: digits } });
+    }
+    where.OR = orConditions;
+  }
+
+  if (status) {
+    where.entrega = { status };
+  }
 
   const [notas, total] = await Promise.all([
     prisma.notaFiscal.findMany({

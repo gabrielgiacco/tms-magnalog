@@ -20,24 +20,33 @@ export default function PortalPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page) });
-    if (search) params.set("numero", search);
+    if (debouncedSearch) params.set("numero", debouncedSearch);
     if (filterStatus) params.set("status", filterStatus);
-    const res = await fetch(`/api/portal?${params}`);
+    const res = await fetch(`/api/portal?${params}`, { cache: "no-store" });
     const data = await res.json();
     setNotas(data.notas || []);
     setTotal(data.total || 0);
     setPages(data.pages || 1);
     setLoading(false);
-  }, [page, search, filterStatus]);
+  }, [page, debouncedSearch, filterStatus]);
 
   useEffect(() => { if (session) fetchData(); }, [session, fetchData]);
 
@@ -101,11 +110,11 @@ export default function PortalPage() {
         <div className="flex gap-3 mb-5 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por número da NF..."
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por NF, cliente, emitente, cidade, CNPJ..."
               className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm outline-none"
               style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }} />
           </div>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+          <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}
             className="px-3 py-2.5 rounded-xl text-sm outline-none"
             style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }}>
             <option value="">Todos os status</option>
