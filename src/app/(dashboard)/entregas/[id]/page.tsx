@@ -52,6 +52,7 @@ export default function EntregaDetailPage() {
     return {
       razaoSocial: e.razaoSocial || "", cidade: e.cidade || "", uf: e.uf || "",
       endereco: e.endereco || "", bairro: e.bairro || "", cep: e.cep || "",
+      dataChegada: e.dataChegada ? e.dataChegada.slice(0, 10) : "",
       dataAgendada: e.dataAgendada ? e.dataAgendada.slice(0, 10) : "",
       dataEntrega: e.dataEntrega ? e.dataEntrega.slice(0, 10) : "",
       motoristaId: e.motoristaId || "", veiculoId: e.veiculoId || "",
@@ -410,6 +411,7 @@ export default function EntregaDetailPage() {
             <Input label="Endereço" value={editForm.endereco} onChange={(e) => set("endereco", e.target.value)} />
             <Input label="Bairro" value={editForm.bairro} onChange={(e) => set("bairro", e.target.value)} />
             <Input label="CEP" value={editForm.cep} onChange={(e) => set("cep", e.target.value)} />
+            <Input label="Data Chegada" type="date" value={editForm.dataChegada} onChange={(e) => set("dataChegada", e.target.value)} />
             <Input label="Data Agendada" type="date" value={editForm.dataAgendada} onChange={(e) => set("dataAgendada", e.target.value)} />
             <Input label="Data Entrega" type="date" value={editForm.dataEntrega} onChange={(e) => set("dataEntrega", e.target.value)} />
             
