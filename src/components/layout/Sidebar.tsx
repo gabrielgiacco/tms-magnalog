@@ -13,7 +13,7 @@ import {
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN","FINANCEIRO","OPERACIONAL"] },
   { href: "/entregas", label: "Entregas", icon: Package, roles: ["ADMIN","FINANCEIRO","OPERACIONAL"] },
-  { href: "/agendamentos", label: "Agendamentos", icon: Calendar, roles: ["ADMIN","FINANCEIRO","OPERACIONAL"] },
+  { href: "/agendamentos", label: "Agendamentos", icon: Calendar, roles: ["ADMIN","FINANCEIRO","OPERACIONAL","CONFERENTE"] },
   { href: "/importacao", label: "Documentos Fiscais", icon: FileUp, roles: ["ADMIN","OPERACIONAL","FINANCEIRO"] },
   { href: "/kanban", label: "Kanban", icon: Columns, roles: ["ADMIN","OPERACIONAL","CONFERENTE"] },
   { href: "/rotas", label: "Rotas", icon: Route, roles: ["ADMIN","OPERACIONAL"] },

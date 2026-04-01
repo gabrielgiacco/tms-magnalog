@@ -27,8 +27,8 @@ export default withAuth(
       return NextResponse.redirect(new URL("/importacao?tab=danfe", req.url));
     }
 
-    // Conferente — só pode acessar kanban
-    if (token?.role === "CONFERENTE" && !pathname.startsWith("/kanban")) {
+    // Conferente — só pode acessar kanban e agendamentos
+    if (token?.role === "CONFERENTE" && !pathname.startsWith("/kanban") && !pathname.startsWith("/agendamentos")) {
       return NextResponse.redirect(new URL("/kanban", req.url));
     }
 
