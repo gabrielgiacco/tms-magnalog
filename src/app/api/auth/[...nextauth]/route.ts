@@ -45,14 +45,13 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, user }) {
-      if (user) {
-        const dbUser = await prisma.user.findUnique({ where: { email: token.email! } });
-        if (dbUser) {
-          token.role = dbUser.role;
-          token.aprovado = dbUser.aprovado;
-          token.userId = dbUser.id;
-        }
+    async jwt({ token }) {
+      // Always fetch latest role/aprovado from DB so admin changes take effect immediately
+      const dbUser = await prisma.user.findUnique({ where: { email: token.email! } });
+      if (dbUser) {
+        token.role = dbUser.role;
+        token.aprovado = dbUser.aprovado;
+        token.userId = dbUser.id;
       }
       return token;
     },

@@ -67,13 +67,14 @@ export async function GET(req: NextRequest) {
     }
 
     if (dataInicio || dataFim) {
-      // Filtrar preferencialmente pela data do sistema se for busca livre de datas
-      where.createdAt = {};
-      if (dataInicio) where.createdAt.gte = new Date(dataInicio);
+      // Se a busca é por agendadas, filtrar pela dataAgendada; senão, pela createdAt
+      const dateField = apenasAgendadas ? "dataAgendada" : "createdAt";
+      where[dateField] = { ...(where[dateField] || {}) };
+      if (dataInicio) where[dateField].gte = new Date(dataInicio);
       if (dataFim) {
         const d = new Date(dataFim);
         d.setHours(23, 59, 59, 999);
-        where.createdAt.lte = d;
+        where[dateField].lte = d;
       }
     }
 

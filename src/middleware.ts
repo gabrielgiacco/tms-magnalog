@@ -27,6 +27,11 @@ export default withAuth(
       return NextResponse.redirect(new URL("/importacao?tab=danfe", req.url));
     }
 
+    // Conferente — só pode acessar kanban
+    if (token?.role === "CONFERENTE" && !pathname.startsWith("/kanban")) {
+      return NextResponse.redirect(new URL("/kanban", req.url));
+    }
+
     // Financeiro — bloqueia OPERACIONAL
     if (pathname.startsWith("/financeiro") && token?.role === "OPERACIONAL") {
       return NextResponse.redirect(new URL("/dashboard", req.url));

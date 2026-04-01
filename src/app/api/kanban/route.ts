@@ -37,6 +37,9 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  if ((session.user as any)?.role === "CONFERENTE") {
+    return NextResponse.json({ error: "Conferente não pode alterar status" }, { status: 403 });
+  }
 
   const { id, status } = await req.json();
   if (!id || !status) return NextResponse.json({ error: "id e status obrigatórios" }, { status: 400 });

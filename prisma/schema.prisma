@@ -43,6 +43,7 @@ enum UserRole {
   ADMIN
   FINANCEIRO
   OPERACIONAL
+  CONFERENTE
   CLIENTE
 }
 

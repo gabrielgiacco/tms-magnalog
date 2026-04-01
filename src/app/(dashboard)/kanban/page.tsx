@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import {
   DndContext,
@@ -138,6 +139,9 @@ function KanbanCard({ entrega, overlay = false }: { entrega: any; overlay?: bool
 }
 
 export default function KanbanPage() {
+  const { data: session } = useSession();
+  const role = (session?.user as any)?.role;
+  const isReadOnly = role === "CONFERENTE";
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -254,8 +258,8 @@ export default function KanbanPage() {
       />
 
       <div className="flex-1 overflow-x-auto p-4">
-        <DndContext sensors={sensors} collisionDetection={closestCenter}
-          onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <DndContext sensors={isReadOnly ? [] : sensors} collisionDetection={closestCenter}
+          onDragStart={isReadOnly ? undefined : handleDragStart} onDragEnd={isReadOnly ? undefined : handleDragEnd}>
           <div className="flex gap-3 h-full" style={{ minWidth: "max-content" }}>
             {COLS.map((col) => {
               const colEntregas = grouped[col.key] || [];

@@ -38,7 +38,6 @@ export default function AgendamentosPage() {
       page: String(page),
       limit: "50",
       apenasAgendadas: "true",
-      mostrarFinalizados: "true"
     });
     
     if (debouncedSearch) params.set("cliente", debouncedSearch);

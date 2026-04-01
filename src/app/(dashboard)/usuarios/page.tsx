@@ -160,6 +160,7 @@ export default function UsuariosPage() {
             <option value="ADMIN">Admin — acesso total</option>
             <option value="FINANCEIRO">Financeiro — sem acesso a XMLs</option>
             <option value="OPERACIONAL">Operacional — sem financeiro</option>
+            <option value="CONFERENTE">Conferente — apenas kanban</option>
             <option value="CLIENTE">Cliente — portal externo</option>
           </Select>
           <Input label={editing ? "Nova Senha (deixe vazio para manter)" : "Senha"} type="password"

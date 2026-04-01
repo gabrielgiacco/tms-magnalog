@@ -15,7 +15,7 @@ const navItems = [
   { href: "/entregas", label: "Entregas", icon: Package, roles: ["ADMIN","FINANCEIRO","OPERACIONAL"] },
   { href: "/agendamentos", label: "Agendamentos", icon: Calendar, roles: ["ADMIN","FINANCEIRO","OPERACIONAL"] },
   { href: "/importacao", label: "Documentos Fiscais", icon: FileUp, roles: ["ADMIN","OPERACIONAL","FINANCEIRO"] },
-  { href: "/kanban", label: "Kanban", icon: Columns, roles: ["ADMIN","OPERACIONAL"] },
+  { href: "/kanban", label: "Kanban", icon: Columns, roles: ["ADMIN","OPERACIONAL","CONFERENTE"] },
   { href: "/rotas", label: "Rotas", icon: Route, roles: ["ADMIN","OPERACIONAL"] },
   { href: "/frota", label: "Frota", icon: Truck, roles: ["ADMIN","OPERACIONAL","FINANCEIRO"] },
   { href: "/financeiro", label: "Financeiro", icon: DollarSign, roles: ["ADMIN","FINANCEIRO"] },
