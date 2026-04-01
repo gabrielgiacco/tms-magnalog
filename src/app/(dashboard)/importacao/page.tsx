@@ -1,39 +1,80 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { Topbar } from "@/components/layout/Topbar";
-import { Button, Card, Loading } from "@/components/ui";
-import { formatWeight } from "@/lib/utils";
-import { Upload, FileText, CheckCircle, XCircle, AlertTriangle, X, ChevronRight } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Button, Card, Loading, Empty, StatusBadge, Table, Th, Td, Tr } from "@/components/ui";
+import { formatWeight, formatDate, formatCurrency, formatCNPJ } from "@/lib/utils";
+import {
+  Upload, FileText, CheckCircle, XCircle, AlertTriangle, X, ChevronRight,
+  Search, RefreshCw, ChevronLeft, ExternalLink, FileSearch,
+  Printer, Download, RotateCcw, FileX, Eye, ZoomIn, ZoomOut, Key, Loader2,
+} from "lucide-react";
+import { DanfeViewer } from "@/components/danfe/DanfeViewer";
+import { DanfeData, parseDanfeXML } from "@/lib/danfe-parser";
 
+// ── Types ──
 interface ResultItem {
-  numero: string;
-  destinatario: string;
-  cidade: string;
-  peso: number;
-  volumes: number;
-  entrega: string;
-  agrupada: boolean;
+  numero: string; destinatario: string; cidade: string;
+  peso: number; volumes: number; entrega: string; agrupada: boolean;
+}
+interface ImportResult {
+  importadas: number; duplicadas: number; agrupadas: number;
+  ctesImportados: number; erros: { arquivo: string; erro: string }[];
+  notas: ResultItem[]; ctes: any[];
 }
 
-interface ImportResult {
-  importadas: number;
-  duplicadas: number;
-  agrupadas: number;
-  ctesImportados: number;
-  erros: { arquivo: string; erro: string }[];
-  notas: ResultItem[];
-  ctes: any[];
+type Tab = "importar" | "notas" | "danfe";
+type InputMode = "chave" | "xml";
+
+// ── Tab Button ──
+function TabBtn({ active, onClick, icon: Icon, children }: { active: boolean; onClick: () => void; icon: any; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className={`flex items-center gap-2 px-5 py-3 text-sm font-bold transition-all border-b-2
+        ${active ? "border-[var(--accent)] text-[var(--accent)]" : "border-transparent text-slate-400 hover:text-slate-600"}`}>
+      <Icon size={16} /> {children}
+    </button>
+  );
 }
 
 export default function ImportacaoPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) || "importar";
+  const [tab, setTab] = useState<Tab>(initialTab);
+
+  // ── Importar XML state ──
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
 
+  // ── Notas Fiscais state ──
+  const [notas, setNotas] = useState<any[]>([]);
+  const [notasLoading, setNotasLoading] = useState(false);
+  const [notasTotal, setNotasTotal] = useState(0);
+  const [notasPage, setNotasPage] = useState(1);
+  const [notasPages, setNotasPages] = useState(1);
+  const [notasSearch, setNotasSearch] = useState("");
+  const [debouncedNotasSearch, setDebouncedNotasSearch] = useState("");
+  const [semEntrega, setSemEntrega] = useState(false);
+
+  // ── Consulta DANFE state ──
+  const [danfeMode, setDanfeMode] = useState<InputMode>("chave");
+  const [danfeDragging, setDanfeDragging] = useState(false);
+  const [danfeData, setDanfeData] = useState<DanfeData | null>(null);
+  const [xmlContent, setXmlContent] = useState<string | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [danfeError, setDanfeError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(100);
+  const [chave, setChave] = useState("");
+  const [danfeLoading, setDanfeLoading] = useState(false);
+  const danfeRef = useRef<HTMLDivElement>(null);
+
+  // ══════════════════════════════════════
+  // IMPORTAR XML
+  // ══════════════════════════════════════
   const addFiles = useCallback((newFiles: FileList | null) => {
     if (!newFiles) return;
     const xmlFiles = Array.from(newFiles).filter((f) => f.name.toLowerCase().endsWith(".xml") || f.type === "text/xml");
@@ -45,265 +86,466 @@ export default function ImportacaoPage() {
   }, []);
 
   function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragging(false);
-    addFiles(e.dataTransfer.files);
+    e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files);
   }
 
   async function handleImport() {
     if (!files.length) return;
-    setLoading(true);
-    setResult(null);
+    setImportLoading(true); setResult(null);
     try {
       const fd = new FormData();
       files.forEach((f) => fd.append("files", f));
       const res = await fetch("/api/importacao", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setResult(data);
-      setFiles([]);
-      if (data.importadas > 0 || data.agrupadas > 0) {
-        toast.success(`${data.importadas} criadas, ${data.agrupadas} agrupadas!`);
-      } else if (data.duplicadas > 0 && !data.importadas) {
-        toast("Todas as notas já estavam importadas", { icon: "ℹ️" });
-      }
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setLoading(false);
-    }
+      setResult(data); setFiles([]);
+      if (data.importadas > 0 || data.agrupadas > 0) toast.success(`${data.importadas} criadas, ${data.agrupadas} agrupadas!`);
+      else if (data.duplicadas > 0 && !data.importadas) toast("Todas as notas já estavam importadas", { icon: "ℹ️" });
+    } catch (e: any) { toast.error(e.message); }
+    finally { setImportLoading(false); }
   }
 
   const totalSize = files.reduce((s, f) => s + f.size, 0);
   const fmtSize = (b: number) => b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
 
+  // ══════════════════════════════════════
+  // NOTAS FISCAIS
+  // ══════════════════════════════════════
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedNotasSearch(notasSearch); setNotasPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [notasSearch]);
+
+  const fetchNotas = useCallback(async () => {
+    setNotasLoading(true);
+    const params = new URLSearchParams({ page: String(notasPage), limit: "50" });
+    if (debouncedNotasSearch) params.set("q", debouncedNotasSearch);
+    if (semEntrega) params.set("semEntrega", "true");
+    const res = await fetch(`/api/notas?${params}`);
+    const data = await res.json();
+    setNotas(data.notas || []); setNotasTotal(data.total || 0); setNotasPages(data.pages || 1);
+    setNotasLoading(false);
+  }, [notasPage, debouncedNotasSearch, semEntrega]);
+
+  useEffect(() => { if (tab === "notas") fetchNotas(); }, [tab, fetchNotas]);
+
+  // ══════════════════════════════════════
+  // CONSULTA DANFE
+  // ══════════════════════════════════════
+  const processXml = useCallback((content: string, name: string) => {
+    try {
+      const parsed = parseDanfeXML(content);
+      setXmlContent(content); setFileName(name); setDanfeData(parsed); setDanfeError(null);
+      toast.success("DANFE carregado com sucesso!");
+    } catch (e: any) { setDanfeError(e.message || "Erro ao processar o XML"); toast.error("Erro ao processar XML"); }
+  }, []);
+
+  const processFile = useCallback(async (file: File) => {
+    setDanfeError(null); setDanfeData(null);
+    if (!file.name.toLowerCase().endsWith(".xml")) { setDanfeError("Por favor, selecione um arquivo XML de NF-e."); return; }
+    const content = await file.text();
+    processXml(content, file.name);
+  }, [processXml]);
+
+  async function handleConsultaChave() {
+    const clean = chave.replace(/\s/g, "");
+    if (!/^\d{44}$/.test(clean)) { setDanfeError("A chave de acesso deve conter exatamente 44 dígitos numéricos."); toast.error("Chave de acesso inválida"); return; }
+    setDanfeError(null); setDanfeData(null); setDanfeLoading(true);
+    try {
+      const res = await fetch("/api/consulta-danfe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chave: clean }) });
+      const data = await res.json();
+      if (!res.ok) { setDanfeError(data.error || "Erro ao consultar NF-e."); toast.error(data.error || "Erro ao consultar NF-e"); return; }
+      processXml(data.xml, `NFe_${clean}.xml`);
+    } catch { setDanfeError("Erro de conexão ao consultar NF-e."); toast.error("Erro de conexão"); }
+    finally { setDanfeLoading(false); }
+  }
+
+  function handleDanfeDrop(e: React.DragEvent) { e.preventDefault(); setDanfeDragging(false); const file = e.dataTransfer.files?.[0]; if (file) processFile(file); }
+  function handleDanfeFileSelect(e: React.ChangeEvent<HTMLInputElement>) { const file = e.target.files?.[0]; if (file) processFile(file); e.target.value = ""; }
+  function handleDanfeReset() { setDanfeData(null); setXmlContent(null); setFileName(""); setDanfeError(null); setZoom(100); setChave(""); }
+  function handleDownloadXml() {
+    if (!xmlContent || !fileName) return;
+    const blob = new Blob([xmlContent], { type: "text/xml" }); const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = fileName; a.click(); URL.revokeObjectURL(url);
+  }
+
+  // ══════════════════════════════════════
+  // RENDER
+  // ══════════════════════════════════════
   return (
     <>
-      <Topbar title="Importar XML de NF-e" subtitle="Upload em lote de notas fiscais eletrônicas" />
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+      <Topbar title="Documentos Fiscais" subtitle="Importação, consulta de notas e visualização de DANFE" />
+      <div className="flex-1 overflow-y-auto">
+        {/* Tabs */}
+        <div className="flex gap-1 px-6 border-b" style={{ borderColor: "var(--border)" }}>
+          <TabBtn active={tab === "importar"} onClick={() => setTab("importar")} icon={Upload}>Importar XML</TabBtn>
+          <TabBtn active={tab === "notas"} onClick={() => setTab("notas")} icon={FileText}>Notas Fiscais</TabBtn>
+          <TabBtn active={tab === "danfe"} onClick={() => setTab("danfe")} icon={FileSearch}>Consulta DANFE</TabBtn>
+        </div>
 
-        {/* Drop zone */}
-        {!result && (
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
-            className="relative rounded-2xl transition-all cursor-pointer"
-            style={{
-              border: `2px dashed ${dragging ? "var(--accent)" : "var(--border2)"}`,
-              background: dragging ? "rgba(249,115,22,.05)" : "var(--surface)",
-              minHeight: "200px",
-            }}
-            onClick={() => document.getElementById("xml-input")?.click()}>
-            <input id="xml-input" type="file" multiple accept=".xml,text/xml" className="hidden"
-              onChange={(e) => addFiles(e.target.files)} />
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-              <Upload size={48} className="text-gray-400 mb-4" />
-              <p className="text-gray-600 mb-2 font-head">
-                Arraste os arquivos XML aqui ou clique para selecionar
-              </p>
-              <p className="text-sm text-gray-500 font-mono">
-                Suporta múltiplos arquivos simultâneos
-              </p>
-              <div className="flex gap-2 mt-4 justify-center">
-                {["XML NF-e", "XML CT-e"].map((tag) => (
-                  <span key={tag} className="text-[11px] px-3 py-1 rounded-full font-bold font-mono"
-                    style={{ background: "var(--accent)", color: "white" }}>{tag}</span>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Files queue */}
-        {files.length > 0 && (
-          <Card>
-            <div className="flex items-center justify-between mb-3">
-              <span className="font-head text-sm font-bold">{files.length} arquivo(s) na fila · {fmtSize(totalSize)}</span>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setFiles([])}>Limpar tudo</Button>
-                <Button onClick={handleImport} loading={loading}>
-                  <Upload size={15} /> Importar {files.length} arquivo(s)
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-1.5 max-h-64 overflow-y-auto">
-              {files.map((f, i) => (
-                <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg"
-                  style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
-                  <FileText size={14} style={{ color: "var(--accent)" }} />
-                  <span className="flex-1 text-xs font-mono truncate">{f.name}</span>
-                  <span className="text-[10px]" style={{ color: "var(--text3)" }}>{fmtSize(f.size)}</span>
-                  <button onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}
-                    className="hover:opacity-60 transition-all" style={{ color: "var(--text3)" }}>
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {/* Loading */}
-        {loading && (
-          <Card className="flex flex-col items-center py-12 gap-4">
-            <div className="w-12 h-12 rounded-full border-2 border-t-transparent animate-spin"
-              style={{ borderColor: "var(--border2)", borderTopColor: "var(--accent)" }} />
-            <p className="text-sm" style={{ color: "var(--text2)" }}>Processando {files.length} arquivo(s)...</p>
-          </Card>
-        )}
-
-        {/* Result */}
-        {result && (
-          <div className="space-y-4 animate-fadeIn">
-            {/* Summary cards */}
-            <div className="grid grid-cols-4 gap-4">
-              <div className="rounded-xl p-4 flex items-center gap-3"
-                style={{ background: "rgba(16,185,129,.1)", border: "1px solid rgba(16,185,129,.25)" }}>
-                <CheckCircle size={22} style={{ color: "#10b981" }} />
-                <div>
-                  <div className="font-head text-2xl font-black" style={{ color: "#10b981" }}>{result.importadas}</div>
-                  <div className="text-[10px] font-mono uppercase" style={{ color: "#10b981" }}>Novas entregas</div>
-                </div>
-              </div>
-              <div className="rounded-xl p-4 flex items-center gap-3"
-                style={{ background: "rgba(59,130,246,.1)", border: "1px solid rgba(59,130,246,.25)" }}>
-                <CheckCircle size={22} style={{ color: "#3b82f6" }} />
-                <div>
-                  <div className="font-head text-2xl font-black" style={{ color: "#3b82f6" }}>{result.agrupadas}</div>
-                  <div className="text-[10px] font-mono uppercase" style={{ color: "#3b82f6" }}>Agrupadas</div>
-                </div>
-              </div>
-              <div className="rounded-xl p-4 flex items-center gap-3"
-                style={{ background: "rgba(100,116,139,.1)", border: "1px solid rgba(100,116,139,.25)" }}>
-                <AlertTriangle size={22} style={{ color: "#64748b" }} />
-                <div>
-                  <div className="font-head text-2xl font-black" style={{ color: "#64748b" }}>{result.duplicadas}</div>
-                  <div className="text-[10px] font-mono uppercase" style={{ color: "#64748b" }}>Duplicadas</div>
-                </div>
-              </div>
-              <div className="rounded-xl p-4 flex items-center gap-3"
-                style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.25)" }}>
-                <XCircle size={22} style={{ color: "#ef4444" }} />
-                <div>
-                  <div className="font-head text-2xl font-black" style={{ color: "#ef4444" }}>{result.erros.length}</div>
-                  <div className="text-[10px] font-mono uppercase" style={{ color: "#ef4444" }}>Erros</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Errors */}
-            {result.ctesImportados > 0 && (
-            <Card>
-              <h3 className="font-bold flex items-center gap-2 font-head text-sm mb-3">
-                <CheckCircle size={18} style={{ color: "#f59e0b" }} />
-                {result.ctesImportados} CT-e(s) processado(s)
-              </h3>
-              {result.ctes.map((cte: any, i: number) => (
-                <div key={i} className="p-3 rounded-lg mb-2" style={{ background: "rgba(245,158,11,.06)", border: "1px solid rgba(245,158,11,.2)" }}>
-                  <div className="flex items-center gap-4 mb-1">
-                    <span className="font-mono text-xs font-bold">CT-e {cte.numero}</span>
-                    <span className="text-xs" style={{ color: "var(--text2)" }}>{cte.tomador}</span>
-                    <span className="font-mono text-xs font-bold" style={{ color: "#f59e0b" }}>R$ {cte.valor?.toFixed(2)}</span>
-                    {cte.reprocessado && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 font-mono">Reprocessado</span>}
-                  </div>
-                  <div className="text-[11px] mt-1" style={{ color: "var(--text3)" }}>
-                    <span className="font-mono">Notas vinculadas: {cte.vinculadas || 0}</span>
-                    {cte.debug?.entregasAtualizadas > 0 && (
-                      <span className="ml-3 text-emerald-500">✓ Frete atualizado em {cte.debug.entregasAtualizadas} entrega(s)</span>
-                    )}
-                    {cte.debug?.notasEncontradas === 0 && cte.debug?.entregasDiretas === 0 && (
-                      <span className="ml-3 text-red-400">✗ Nenhuma NF correspondente encontrada no sistema</span>
-                    )}
-                    {cte.debug?.notasEncontradas === 0 && !cte.debug?.entregasDiretas && (
-                      <span className="ml-3 text-red-400">✗ Nenhuma NF correspondente encontrada no sistema</span>
-                    )}
-                  </div>
-                  {cte.debug?.chavesNFeDoCte?.length > 0 && (
-                    <details className="mt-2">
-                      <summary className="text-[10px] font-mono cursor-pointer" style={{ color: "var(--text3)" }}>
-                        Ver chaves de NF referenciadas ({cte.debug.chavesNFeDoCte.length})
-                      </summary>
-                      <div className="mt-1 space-y-0.5">
-                        {cte.debug.chavesNFeDoCte.map((ch: string, j: number) => (
-                          <div key={j} className="font-mono text-[10px] px-2 py-1 rounded" style={{ background: "var(--surface2)", color: "var(--text2)" }}>
-                            {ch}
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  )}
-                </div>
-              ))}
-            </Card>
-          )}
-
-          {result.erros.length > 0 && (
-              <Card>
-                <div className="font-head text-sm font-bold mb-3 text-red-400">Erros de processamento</div>
-                {result.erros.map((e, i) => (
-                  <div key={i} className="flex gap-3 p-2.5 rounded-lg mb-2"
-                    style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)" }}>
-                    <XCircle size={14} style={{ color: "#ef4444", flexShrink: 0, marginTop: 1 }} />
-                    <div>
-                      <div className="text-xs font-mono" style={{ color: "#ef4444" }}>{e.arquivo}</div>
-                      <div className="text-xs mt-0.5" style={{ color: "var(--text2)" }}>{e.erro}</div>
+        <div className="p-6 space-y-5">
+          {/* ═══════ TAB: IMPORTAR XML ═══════ */}
+          {tab === "importar" && (
+            <>
+              {!result && (
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={handleDrop}
+                  className="relative rounded-2xl transition-all cursor-pointer"
+                  style={{ border: `2px dashed ${dragging ? "var(--accent)" : "var(--border2)"}`, background: dragging ? "rgba(249,115,22,.05)" : "var(--surface)", minHeight: "200px" }}
+                  onClick={() => document.getElementById("xml-input")?.click()}>
+                  <input id="xml-input" type="file" multiple accept=".xml,text/xml" className="hidden" onChange={(e) => addFiles(e.target.files)} />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                    <Upload size={48} className="text-gray-400 mb-4" />
+                    <p className="text-gray-600 mb-2 font-head">Arraste os arquivos XML aqui ou clique para selecionar</p>
+                    <p className="text-sm text-gray-500 font-mono">Suporta múltiplos arquivos simultâneos</p>
+                    <div className="flex gap-2 mt-4 justify-center">
+                      {["XML NF-e", "XML CT-e"].map((tag) => (
+                        <span key={tag} className="text-[11px] px-3 py-1 rounded-full font-bold font-mono" style={{ background: "var(--accent)", color: "white" }}>{tag}</span>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </Card>
-            )}
-
-            {/* Notes imported */}
-            {result.notas.length > 0 && (
-              <Card>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="font-head text-sm font-bold">Notas processadas</div>
-                  <Button variant="ghost" size="sm" onClick={() => router.push("/entregas")}>
-                    Ver entregas <ChevronRight size={14} />
-                  </Button>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        {["NF", "Destinatário", "Cidade", "Peso", "Vol.", "Entrega", "Tipo"].map((h) => (
-                          <th key={h} className="text-left px-3 py-2 text-[10px] uppercase tracking-wider font-normal font-mono"
-                            style={{ color: "var(--text3)", borderBottom: "1px solid var(--border)" }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.notas.map((n, i) => (
-                        <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
-                          <td className="px-3 py-2.5 font-mono text-xs" style={{ color: "var(--text2)" }}>{n.numero}</td>
-                          <td className="px-3 py-2.5 text-sm font-medium">{n.destinatario}</td>
-                          <td className="px-3 py-2.5 text-xs" style={{ color: "var(--text2)" }}>{n.cidade}</td>
-                          <td className="px-3 py-2.5 text-xs font-mono">{formatWeight(n.peso)}</td>
-                          <td className="px-3 py-2.5 text-xs font-mono">{n.volumes}</td>
-                          <td className="px-3 py-2.5 font-mono text-xs" style={{ color: "var(--accent)" }}>{n.entrega}</td>
-                          <td className="px-3 py-2.5">
-                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${n.agrupada
-                              ? "text-blue-400 bg-blue-400/10 border border-blue-400/30"
-                              : "text-emerald-400 bg-emerald-400/10 border border-emerald-400/30"}`}>
-                              {n.agrupada ? "Agrupada" : "Nova"}
-                            </span>
-                          </td>
-                        </tr>
+              )}
+
+              {files.length > 0 && (
+                <Card>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-head text-sm font-bold">{files.length} arquivo(s) na fila · {fmtSize(totalSize)}</span>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setFiles([])}>Limpar tudo</Button>
+                      <Button onClick={handleImport} loading={importLoading}><Upload size={15} /> Importar {files.length} arquivo(s)</Button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                    {files.map((f, i) => (
+                      <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
+                        <FileText size={14} style={{ color: "var(--accent)" }} />
+                        <span className="flex-1 text-xs font-mono truncate">{f.name}</span>
+                        <span className="text-[10px]" style={{ color: "var(--text3)" }}>{fmtSize(f.size)}</span>
+                        <button onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))} className="hover:opacity-60 transition-all" style={{ color: "var(--text3)" }}><X size={14} /></button>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {importLoading && (
+                <Card className="flex flex-col items-center py-12 gap-4">
+                  <div className="w-12 h-12 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--border2)", borderTopColor: "var(--accent)" }} />
+                  <p className="text-sm" style={{ color: "var(--text2)" }}>Processando {files.length} arquivo(s)...</p>
+                </Card>
+              )}
+
+              {result && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="grid grid-cols-4 gap-4">
+                    {[
+                      { val: result.importadas, label: "Novas entregas", color: "#10b981", Icon: CheckCircle },
+                      { val: result.agrupadas, label: "Agrupadas", color: "#3b82f6", Icon: CheckCircle },
+                      { val: result.duplicadas, label: "Duplicadas", color: "#64748b", Icon: AlertTriangle },
+                      { val: result.erros.length, label: "Erros", color: "#ef4444", Icon: XCircle },
+                    ].map(({ val, label, color, Icon }) => (
+                      <div key={label} className="rounded-xl p-4 flex items-center gap-3" style={{ background: `${color}18`, border: `1px solid ${color}40` }}>
+                        <Icon size={22} style={{ color }} />
+                        <div>
+                          <div className="font-head text-2xl font-black" style={{ color }}>{val}</div>
+                          <div className="text-[10px] font-mono uppercase" style={{ color }}>{label}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {result.ctesImportados > 0 && (
+                    <Card>
+                      <h3 className="font-bold flex items-center gap-2 font-head text-sm mb-3"><CheckCircle size={18} style={{ color: "#f59e0b" }} />{result.ctesImportados} CT-e(s) processado(s)</h3>
+                      {result.ctes.map((cte: any, i: number) => (
+                        <div key={i} className="p-3 rounded-lg mb-2" style={{ background: "rgba(245,158,11,.06)", border: "1px solid rgba(245,158,11,.2)" }}>
+                          <div className="flex items-center gap-4 mb-1">
+                            <span className="font-mono text-xs font-bold">CT-e {cte.numero}</span>
+                            <span className="text-xs" style={{ color: "var(--text2)" }}>{cte.tomador}</span>
+                            <span className="font-mono text-xs font-bold" style={{ color: "#f59e0b" }}>R$ {cte.valor?.toFixed(2)}</span>
+                            {cte.reprocessado && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 font-mono">Reprocessado</span>}
+                          </div>
+                          <div className="text-[11px] mt-1" style={{ color: "var(--text3)" }}>
+                            <span className="font-mono">Notas vinculadas: {cte.vinculadas || 0}</span>
+                            {cte.debug?.entregasAtualizadas > 0 && <span className="ml-3 text-emerald-500">✓ Frete atualizado em {cte.debug.entregasAtualizadas} entrega(s)</span>}
+                            {cte.debug?.notasEncontradas === 0 && <span className="ml-3 text-red-400">✗ Nenhuma NF correspondente encontrada no sistema</span>}
+                          </div>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
+                    </Card>
+                  )}
+
+                  {result.erros.length > 0 && (
+                    <Card>
+                      <div className="font-head text-sm font-bold mb-3 text-red-400">Erros de processamento</div>
+                      {result.erros.map((e, i) => (
+                        <div key={i} className="flex gap-3 p-2.5 rounded-lg mb-2" style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)" }}>
+                          <XCircle size={14} style={{ color: "#ef4444", flexShrink: 0, marginTop: 1 }} />
+                          <div>
+                            <div className="text-xs font-mono" style={{ color: "#ef4444" }}>{e.arquivo}</div>
+                            <div className="text-xs mt-0.5" style={{ color: "var(--text2)" }}>{e.erro}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </Card>
+                  )}
+
+                  {result.notas.length > 0 && (
+                    <Card>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="font-head text-sm font-bold">Notas processadas</div>
+                        <Button variant="ghost" size="sm" onClick={() => router.push("/entregas")}>Ver entregas <ChevronRight size={14} /></Button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr>
+                              {["NF", "Destinatário", "Cidade", "Peso", "Vol.", "Entrega", "Tipo"].map((h) => (
+                                <th key={h} className="text-left px-3 py-2 text-[10px] uppercase tracking-wider font-normal font-mono" style={{ color: "var(--text3)", borderBottom: "1px solid var(--border)" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {result.notas.map((n, i) => (
+                              <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                                <td className="px-3 py-2.5 font-mono text-xs" style={{ color: "var(--text2)" }}>{n.numero}</td>
+                                <td className="px-3 py-2.5 text-sm font-medium">{n.destinatario}</td>
+                                <td className="px-3 py-2.5 text-xs" style={{ color: "var(--text2)" }}>{n.cidade}</td>
+                                <td className="px-3 py-2.5 text-xs font-mono">{formatWeight(n.peso)}</td>
+                                <td className="px-3 py-2.5 text-xs font-mono">{n.volumes}</td>
+                                <td className="px-3 py-2.5 font-mono text-xs" style={{ color: "var(--accent)" }}>{n.entrega}</td>
+                                <td className="px-3 py-2.5">
+                                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${n.agrupada ? "text-blue-400 bg-blue-400/10 border border-blue-400/30" : "text-emerald-400 bg-emerald-400/10 border border-emerald-400/30"}`}>
+                                    {n.agrupada ? "Agrupada" : "Nova"}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Card>
+                  )}
+
+                  <div className="flex justify-center">
+                    <Button variant="ghost" onClick={() => setResult(null)}><Upload size={15} /> Importar mais arquivos</Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ═══════ TAB: NOTAS FISCAIS ═══════ */}
+          {tab === "notas" && (
+            <>
+              <Card className="p-4">
+                <div className="flex gap-3 items-center flex-wrap">
+                  <div className="relative flex-1 min-w-[240px]">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
+                    <input value={notasSearch} onChange={e => setNotasSearch(e.target.value)}
+                      placeholder="Buscar NF, emitente, destinatário, chave..."
+                      className="w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none"
+                      style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} />
+                  </div>
+                  <label className="flex items-center gap-2 text-xs cursor-pointer select-none" style={{ color: "var(--text2)" }}>
+                    <input type="checkbox" checked={semEntrega} onChange={e => { setSemEntrega(e.target.checked); setNotasPage(1); }} className="accent-orange-500 w-3.5 h-3.5" />
+                    Somente sem entrega vinculada
+                  </label>
+                  <Button variant="ghost" size="sm" onClick={fetchNotas}><RefreshCw size={13} /> Atualizar</Button>
+                  <span className="text-xs font-mono ml-auto" style={{ color: "var(--text3)" }}>{notasTotal} nota{notasTotal !== 1 ? "s" : ""}</span>
                 </div>
               </Card>
-            )}
 
-            <div className="flex justify-center">
-              <Button variant="ghost" onClick={() => setResult(null)}>
-                <Upload size={15} /> Importar mais arquivos
-              </Button>
-            </div>
-          </div>
-        )}
+              <Card className="p-0 overflow-hidden">
+                {notasLoading ? <Loading /> : notas.length === 0 ? <Empty icon="📄" text="Nenhuma nota fiscal encontrada" /> : (
+                  <>
+                    <Table>
+                      <thead>
+                        <tr>
+                          <Th>NF / Série</Th><Th>Emitente</Th><Th>Destinatário</Th><Th>Cidade / UF</Th>
+                          <Th>Vol.</Th><Th>Peso</Th><Th>Valor NF</Th><Th>Emissão</Th><Th>Entrega</Th><Th>Status</Th><Th></Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {notas.map(nf => (
+                          <Tr key={nf.id} onClick={() => nf.entrega && router.push(`/entregas/${nf.entrega.id}`)} className={nf.entrega ? "" : "opacity-70"}>
+                            <Td>
+                              <div className="font-mono text-sm font-semibold" style={{ color: "var(--accent)" }}>NF {nf.numero}</div>
+                              {nf.serie && <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>Série {nf.serie}</div>}
+                            </Td>
+                            <Td>
+                              <div className="text-sm font-medium leading-tight">{nf.emitenteRazao}</div>
+                              <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>{formatCNPJ(nf.emitenteCnpj)}</div>
+                            </Td>
+                            <Td>
+                              <div className="text-sm leading-tight">{nf.destinatarioRazao}</div>
+                              <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>{formatCNPJ(nf.destinatarioCnpj)}</div>
+                            </Td>
+                            <Td><span className="text-xs" style={{ color: "var(--text2)" }}>{nf.cidade}{nf.uf ? ` — ${nf.uf}` : ""}</span></Td>
+                            <Td><span className="font-mono text-xs">{nf.volumes}</span></Td>
+                            <Td><span className="font-mono text-xs" style={{ color: "var(--text2)" }}>{formatWeight(nf.pesoBruto)}</span></Td>
+                            <Td><span className="font-mono text-xs" style={{ color: "#10b981" }}>{formatCurrency(nf.valorNota)}</span></Td>
+                            <Td><span className="font-mono text-[11px]" style={{ color: "var(--text3)" }}>{formatDate(nf.dataEmissao)}</span></Td>
+                            <Td>
+                              {nf.entrega ? (
+                                <span className="font-mono text-[11px]" style={{ color: "var(--accent)" }}>
+                                  {nf.entrega.notas?.length > 0 ? nf.entrega.notas.map((n: any) => n.numero).join(", ") : nf.entrega.codigo}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(239,68,68,.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,.2)" }}>Sem entrega</span>
+                              )}
+                            </Td>
+                            <Td>{nf.entrega ? <StatusBadge status={nf.entrega.status} /> : <span className="text-[10px]" style={{ color: "var(--text3)" }}>—</span>}</Td>
+                            <Td>
+                              {nf.entrega && (
+                                <button onClick={ev => { ev.stopPropagation(); router.push(`/entregas/${nf.entrega.id}`); }}
+                                  className="p-1.5 rounded-lg transition-all hover:opacity-70" style={{ background: "var(--surface2)", color: "var(--text2)" }}>
+                                  <ExternalLink size={13} />
+                                </button>
+                              )}
+                            </Td>
+                          </Tr>
+                        ))}
+                      </tbody>
+                    </Table>
+
+                    {notasPages > 1 && (
+                      <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: "1px solid var(--border)" }}>
+                        <span className="text-xs font-mono" style={{ color: "var(--text3)" }}>Página {notasPage} de {notasPages} · {notasTotal} registros</span>
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" disabled={notasPage === 1} onClick={() => setNotasPage(p => p - 1)}><ChevronLeft size={14} /></Button>
+                          <Button variant="ghost" size="sm" disabled={notasPage === notasPages} onClick={() => setNotasPage(p => p + 1)}><ChevronRight size={14} /></Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </Card>
+            </>
+          )}
+
+          {/* ═══════ TAB: CONSULTA DANFE ═══════ */}
+          {tab === "danfe" && (
+            <>
+              {!danfeData && (
+                <div className="max-w-2xl mx-auto space-y-5">
+                  <div className="text-center py-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ background: "rgba(249,115,22,.1)" }}>
+                      <Search size={32} style={{ color: "var(--accent)" }} />
+                    </div>
+                    <h2 className="font-head text-xl font-bold tracking-tight mb-2">Visualizador de DANFE</h2>
+                    <p className="text-sm" style={{ color: "var(--text2)" }}>Consulte pela chave de acesso ou faça upload do XML da NF-e</p>
+                  </div>
+
+                  <div className="flex rounded-xl p-1 gap-1" style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
+                    <button onClick={() => { setDanfeMode("chave"); setDanfeError(null); }}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold font-head transition-all"
+                      style={danfeMode === "chave" ? { background: "var(--surface)", color: "var(--accent)", boxShadow: "0 1px 3px rgba(0,0,0,.08)" } : { color: "var(--text3)" }}>
+                      <Key size={16} /> Chave de Acesso
+                    </button>
+                    <button onClick={() => { setDanfeMode("xml"); setDanfeError(null); }}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold font-head transition-all"
+                      style={danfeMode === "xml" ? { background: "var(--surface)", color: "var(--accent)", boxShadow: "0 1px 3px rgba(0,0,0,.08)" } : { color: "var(--text3)" }}>
+                      <Upload size={16} /> Upload XML
+                    </button>
+                  </div>
+
+                  {danfeMode === "chave" && (
+                    <Card className="space-y-4">
+                      <div>
+                        <label className="text-xs font-bold font-head mb-2 block" style={{ color: "var(--text2)" }}>Chave de Acesso (44 dígitos)</label>
+                        <input type="text" value={chave}
+                          onChange={(e) => setChave(e.target.value.replace(/\D/g, "").slice(0, 44))}
+                          onKeyDown={(e) => { if (e.key === "Enter" && !danfeLoading) handleConsultaChave(); }}
+                          placeholder="0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000"
+                          className="w-full px-4 py-3 rounded-xl text-sm font-mono tracking-widest outline-none transition-all"
+                          style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} maxLength={44} autoFocus />
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>{chave.length}/44 dígitos</span>
+                          {chave.length === 44 && <span className="text-[10px] font-bold" style={{ color: "#059669" }}>Chave completa</span>}
+                        </div>
+                      </div>
+                      <Button onClick={handleConsultaChave} disabled={chave.length !== 44 || danfeLoading} className="w-full" style={{ opacity: chave.length !== 44 || danfeLoading ? 0.5 : 1 }}>
+                        {danfeLoading ? <><Loader2 size={16} className="animate-spin" /> Consultando...</> : <><Search size={16} /> Consultar DANFE</>}
+                      </Button>
+                    </Card>
+                  )}
+
+                  {danfeMode === "xml" && (
+                    <div onDragOver={(e) => { e.preventDefault(); setDanfeDragging(true); }} onDragLeave={() => setDanfeDragging(false)} onDrop={handleDanfeDrop}
+                      className="relative rounded-2xl transition-all cursor-pointer"
+                      style={{ border: `2px dashed ${danfeDragging ? "var(--accent)" : "var(--border2)"}`, background: danfeDragging ? "rgba(249,115,22,.05)" : "var(--surface)", minHeight: "220px" }}
+                      onClick={() => document.getElementById("danfe-xml-input")?.click()}>
+                      <input id="danfe-xml-input" type="file" accept=".xml,text/xml" className="hidden" onChange={handleDanfeFileSelect} />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                        <Upload size={48} className="text-gray-400 mb-2" />
+                        <p className="text-gray-600 font-head font-medium">Arraste o arquivo XML aqui ou clique para selecionar</p>
+                        <p className="text-sm font-mono" style={{ color: "var(--text3)" }}>Aceita XML de NF-e (procNFe ou NFe)</p>
+                        <span className="text-[11px] px-3 py-1 rounded-full font-bold font-mono mt-2" style={{ background: "var(--accent)", color: "white" }}>XML NF-e</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {danfeError && (
+                    <Card className="flex items-start gap-3" style={{ borderColor: "rgba(239,68,68,.3)" }}>
+                      <FileX size={20} style={{ color: "#ef4444", flexShrink: 0, marginTop: 2 }} />
+                      <div>
+                        <div className="text-sm font-bold text-red-400 mb-1">Erro ao consultar DANFE</div>
+                        <div className="text-xs" style={{ color: "var(--text2)" }}>{danfeError}</div>
+                      </div>
+                    </Card>
+                  )}
+
+                  <div className="grid grid-cols-3 gap-4">
+                    {[
+                      { icon: Key, title: "Chave de Acesso", desc: "Consulte com os 44 dígitos" },
+                      { icon: Eye, title: "Visualização", desc: "Layout fiel ao DANFE oficial" },
+                      { icon: Printer, title: "Impressão", desc: "Imprima direto do navegador" },
+                    ].map((f) => (
+                      <div key={f.title} className="rounded-xl p-4 text-center" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                        <f.icon size={24} className="mx-auto mb-2" style={{ color: "var(--accent)" }} />
+                        <div className="text-xs font-bold font-head">{f.title}</div>
+                        <div className="text-[10px] mt-1" style={{ color: "var(--text3)" }}>{f.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {danfeData && (
+                <div className="space-y-4 animate-fadeIn">
+                  <Card className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3">
+                      <FileText size={18} style={{ color: "var(--accent)" }} />
+                      <div>
+                        <div className="text-sm font-bold font-head">NF-e {danfeData.numero} · Série {danfeData.serie}</div>
+                        <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>{fileName}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 rounded-lg px-2 py-1" style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
+                        <button onClick={() => setZoom((z) => Math.max(50, z - 10))} className="p-1 rounded hover:opacity-70 transition-all" style={{ color: "var(--text2)" }}><ZoomOut size={14} /></button>
+                        <span className="text-[10px] font-mono px-1 min-w-[36px] text-center" style={{ color: "var(--text2)" }}>{zoom}%</span>
+                        <button onClick={() => setZoom((z) => Math.min(150, z + 10))} className="p-1 rounded hover:opacity-70 transition-all" style={{ color: "var(--text2)" }}><ZoomIn size={14} /></button>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={handleDownloadXml}><Download size={14} /> XML</Button>
+                      <Button variant="ghost" size="sm" onClick={() => window.print()}><Printer size={14} /> Imprimir</Button>
+                      <Button variant="ghost" size="sm" onClick={handleDanfeReset}><RotateCcw size={14} /> Novo</Button>
+                    </div>
+                  </Card>
+                  <div className="flex justify-center">
+                    <div ref={danfeRef} className="danfe-page-wrapper" style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}>
+                      <DanfeViewer data={danfeData} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </>
   );

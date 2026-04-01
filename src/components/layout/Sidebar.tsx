@@ -4,20 +4,17 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useLayoutStore } from "@/hooks/useLayoutStore";
 import {
-  LayoutDashboard, Package, Calendar, Users, Briefcase, FileText,
-  Anchor, DollarSign, Settings, BarChart2, Wallet, FileUp,
-  Truck, Globe, ChevronRight, Columns, Route, ShieldCheck,
-  Menu, X, ChevronLeft, ChevronRight as ChevronRightIcon,
-  FileSearch
+  LayoutDashboard, Package, Calendar, Users, FileText,
+  DollarSign, Settings, BarChart2, Wallet, FileUp,
+  Truck, Globe, Columns, Route, ShieldCheck,
+  X, ChevronLeft, ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN","FINANCEIRO","OPERACIONAL"] },
   { href: "/entregas", label: "Entregas", icon: Package, roles: ["ADMIN","FINANCEIRO","OPERACIONAL"] },
   { href: "/agendamentos", label: "Agendamentos", icon: Calendar, roles: ["ADMIN","FINANCEIRO","OPERACIONAL"] },
-  { href: "/importacao", label: "Importar XML", icon: FileUp, roles: ["ADMIN","OPERACIONAL"] },
-  { href: "/notas", label: "Notas Fiscais", icon: FileText, roles: ["ADMIN","OPERACIONAL","FINANCEIRO"] },
-  { href: "/consulta-danfe", label: "Consulta DANFE", icon: FileSearch, roles: ["ADMIN","OPERACIONAL","FINANCEIRO"] },
+  { href: "/importacao", label: "Documentos Fiscais", icon: FileUp, roles: ["ADMIN","OPERACIONAL","FINANCEIRO"] },
   { href: "/kanban", label: "Kanban", icon: Columns, roles: ["ADMIN","OPERACIONAL"] },
   { href: "/rotas", label: "Rotas", icon: Route, roles: ["ADMIN","OPERACIONAL"] },
   { href: "/frota", label: "Frota", icon: Truck, roles: ["ADMIN","OPERACIONAL","FINANCEIRO"] },

@@ -19,6 +19,14 @@ export default withAuth(
       return NextResponse.redirect(new URL("/aguardando-aprovacao", req.url));
     }
 
+    // Redirect old routes to unified page
+    if (pathname === "/notas") {
+      return NextResponse.redirect(new URL("/importacao?tab=notas", req.url));
+    }
+    if (pathname === "/consulta-danfe") {
+      return NextResponse.redirect(new URL("/importacao?tab=danfe", req.url));
+    }
+
     // Financeiro — bloqueia OPERACIONAL
     if (pathname.startsWith("/financeiro") && token?.role === "OPERACIONAL") {
       return NextResponse.redirect(new URL("/dashboard", req.url));
@@ -54,7 +62,8 @@ export const config = {
     "/veiculos/:path*",
     "/financeiro/:path*",
     "/relatorios/:path*",
-    "/notas/:path*",
+    "/notas",
+    "/consulta-danfe",
     "/usuarios/:path*",
     "/portal/:path*",
   ],

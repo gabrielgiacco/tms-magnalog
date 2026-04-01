@@ -6,6 +6,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { template: "%s | MagnaLog TMS", default: "MagnaLog TMS" },
   description: "Sistema de Gestão de Transportes - Carga Fracionada",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
