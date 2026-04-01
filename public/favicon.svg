@@ -1,4 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#0f172a"/>
-  <text x="16" y="22" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="16" fill="#f97316">M</text>
+  <rect width="32" height="32" rx="6" fill="#ffffff"/>
+  <!-- Blue swoosh (top-right arc) -->
+  <path d="M26 4 C30 8, 30 16, 22 22 C18 25, 12 26, 6 24" fill="none" stroke="#1a5cdb" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Red swoosh (bottom-left arc) -->
+  <path d="M6 28 C2 24, 2 16, 10 10 C14 7, 20 6, 26 8" fill="none" stroke="#d92027" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- M letter -->
+  <text x="16" y="22.5" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="15" fill="#0a0a0a">M</text>
 </svg>
