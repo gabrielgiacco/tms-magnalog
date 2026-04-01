@@ -72,9 +72,7 @@ export async function GET(req: NextRequest) {
       where[dateField] = { ...(where[dateField] || {}) };
       if (dataInicio) where[dateField].gte = new Date(dataInicio);
       if (dataFim) {
-        const d = new Date(dataFim);
-        d.setHours(23, 59, 59, 999);
-        where[dateField].lte = d;
+        where[dateField].lte = new Date(dataFim);
       }
     }
 

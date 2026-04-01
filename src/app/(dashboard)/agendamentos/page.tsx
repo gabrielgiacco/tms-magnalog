@@ -9,7 +9,6 @@ import {
 } from "@/components/ui";
 import { formatCurrency, formatDate, formatWeight, formatCNPJ } from "@/lib/utils";
 import { Calendar, Search, Eye, RefreshCw, ChevronLeft, ChevronRight, Clock } from "lucide-react";
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 
 type FiltroData = "TODAS" | "HOJE" | "SEMANA" | "MES";
 
@@ -42,16 +41,23 @@ export default function AgendamentosPage() {
     
     if (debouncedSearch) params.set("cliente", debouncedSearch);
 
+    // Usar limites UTC para coincidir com datas armazenadas no banco (meia-noite UTC)
     const hoje = new Date();
+    const y = hoje.getFullYear(), m = hoje.getMonth(), d = hoje.getDate();
     if (filtroData === "HOJE") {
-      params.set("dataInicio", startOfDay(hoje).toISOString());
-      params.set("dataFim", endOfDay(hoje).toISOString());
+      params.set("dataInicio", new Date(Date.UTC(y, m, d)).toISOString());
+      params.set("dataFim", new Date(Date.UTC(y, m, d, 23, 59, 59, 999)).toISOString());
     } else if (filtroData === "SEMANA") {
-      params.set("dataInicio", startOfWeek(hoje, { weekStartsOn: 1 }).toISOString());
-      params.set("dataFim", endOfWeek(hoje, { weekStartsOn: 1 }).toISOString());
+      const seg = new Date(hoje);
+      seg.setDate(d - ((hoje.getDay() + 6) % 7)); // segunda-feira
+      const dom = new Date(seg);
+      dom.setDate(seg.getDate() + 6); // domingo
+      params.set("dataInicio", new Date(Date.UTC(seg.getFullYear(), seg.getMonth(), seg.getDate())).toISOString());
+      params.set("dataFim", new Date(Date.UTC(dom.getFullYear(), dom.getMonth(), dom.getDate(), 23, 59, 59, 999)).toISOString());
     } else if (filtroData === "MES") {
-      params.set("dataInicio", startOfMonth(hoje).toISOString());
-      params.set("dataFim", endOfMonth(hoje).toISOString());
+      const ultimoDia = new Date(y, m + 1, 0).getDate();
+      params.set("dataInicio", new Date(Date.UTC(y, m, 1)).toISOString());
+      params.set("dataFim", new Date(Date.UTC(y, m, ultimoDia, 23, 59, 59, 999)).toISOString());
     }
 
     try {
