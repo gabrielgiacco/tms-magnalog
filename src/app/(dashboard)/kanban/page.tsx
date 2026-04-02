@@ -23,7 +23,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button, Loading, StatusBadge } from "@/components/ui";
 import { formatWeight, formatDate, formatCurrency } from "@/lib/utils";
-import { RefreshCw, ExternalLink, GripVertical, User, Package } from "lucide-react";
+import { RefreshCw, ExternalLink, GripVertical, User, Package, Search } from "lucide-react";
 
 const COLS = [
   { key: "PROGRAMADO",    label: "Programado",    icon: "📋", color: "#9ca3af" }, // cinza
@@ -110,6 +110,11 @@ function KanbanCard({ entrega, overlay = false }: { entrega: any; overlay?: bool
       </div>
 
       <p className="text-sm font-semibold leading-tight mb-1 line-clamp-2">{entrega.razaoSocial}</p>
+      {entrega.fornecedor && (
+        <p className="text-[10px] mb-1 leading-tight" style={{ color: "var(--text2)" }}>
+          Fornecedor: {entrega.fornecedor}
+        </p>
+      )}
       {entrega.isRota && entrega.notas && entrega.notas.length > 0 && (
         <p className="text-[10px] font-mono mb-2 leading-tight max-w-full" style={{ color: "var(--text3)" }}>
           <span className="font-bold">NFs:</span> {entrega.notas.map((n: any) => n.numero).join(", ")}
@@ -145,6 +150,7 @@ export default function KanbanPage() {
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const fetchData = useCallback(async () => {
@@ -181,7 +187,10 @@ export default function KanbanPage() {
           r.entregasCount++;
           if (e.notas) r.notas.push(...e.notas);
         } else {
-          processed.push(e);
+          processed.push({
+            ...e,
+            fornecedor: e.notas?.[0]?.emitenteRazao || null,
+          });
         }
       }
 
@@ -238,8 +247,19 @@ export default function KanbanPage() {
   }
 
   const activeEntrega = entregas.find((e) => e.id === activeId);
+  const q = search.toLowerCase().trim();
+  const filtered = q
+    ? entregas.filter((e) =>
+        e.razaoSocial?.toLowerCase().includes(q) ||
+        e.fornecedor?.toLowerCase().includes(q) ||
+        e.cidade?.toLowerCase().includes(q) ||
+        e.codigo?.toLowerCase().includes(q) ||
+        e.motorista?.nome?.toLowerCase().includes(q) ||
+        e.notas?.some((n: any) => n.numero?.toLowerCase().includes(q) || n.emitenteRazao?.toLowerCase().includes(q))
+      )
+    : entregas;
   const grouped = COLS.reduce((acc, col) => {
-    acc[col.key] = entregas.filter((e) => e.status === col.key);
+    acc[col.key] = filtered.filter((e) => e.status === col.key);
     return acc;
   }, {} as Record<string, any[]>);
 
@@ -249,11 +269,22 @@ export default function KanbanPage() {
     <>
       <Topbar
         title="Kanban Operacional"
-        subtitle={`${entregas.length} entregas em andamento`}
+        subtitle={`${filtered.length} de ${entregas.length} entregas`}
         actions={
-          <Button variant="ghost" size="sm" onClick={fetchData}>
-            <RefreshCw size={13} /> Atualizar
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar NF, cliente, fornecedor..."
+                className="pl-8 pr-3 py-1.5 rounded-lg text-xs outline-none w-[220px] bg-[var(--surface2)] border border-[var(--border)] text-[var(--text)]"
+              />
+            </div>
+            <Button variant="ghost" size="sm" onClick={fetchData}>
+              <RefreshCw size={13} /> Atualizar
+            </Button>
+          </div>
         }
       />
 

@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       motorista: { select: { nome: true } },
       veiculo: { select: { placa: true } },
       _count: { select: { notas: true } },
-      notas: { select: { numero: true } },
+      notas: { select: { numero: true, emitenteRazao: true } },
       rota: { select: { id: true, codigo: true, valorMotorista: true } },
     },
   });
