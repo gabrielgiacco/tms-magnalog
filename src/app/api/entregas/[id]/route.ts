@@ -55,14 +55,27 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     data.saldoPendente = frete - adt;
   }
 
-  // Calcular dias de armazenagem automaticamente
-  if (body.status === "FINALIZADO" && body.dataEntrega) {
-    const entrega = await prisma.entrega.findUnique({ where: { id: params.id } });
-    if (entrega?.dataChegada) {
-      const chegada = new Date(entrega.dataChegada);
-      const entregaDate = new Date(body.dataEntrega);
-      const dias = Math.floor((entregaDate.getTime() - chegada.getTime()) / (1000 * 60 * 60 * 24));
-      data.diasArmazenagem = Math.max(0, dias);
+  // Calcular armazenagem automaticamente com base na tabela do cliente
+  {
+    const current = await prisma.entrega.findUnique({ where: { id: params.id } });
+    if (current) {
+      const chegada = data.dataChegada || current.dataChegada;
+      const entregaDate = data.dataEntrega || current.dataEntrega;
+      const paletes = data.quantidadePaletes ?? current.quantidadePaletes ?? 0;
+
+      if (chegada && entregaDate && paletes > 0) {
+        const dias = Math.max(0, Math.floor((new Date(entregaDate).getTime() - new Date(chegada).getTime()) / (1000 * 60 * 60 * 24)));
+        data.diasArmazenagem = dias;
+
+        // Buscar tabela de armazenagem do cliente
+        const tabela = await prisma.tabelaArmazenagem.findUnique({ where: { cnpjCliente: current.cnpj } });
+        if (tabela) {
+          const diasCobrados = Math.max(0, dias - tabela.diasFree);
+          data.valorArmazenagem = diasCobrados * paletes * tabela.valorPaleteDia;
+        }
+      } else if (chegada && entregaDate) {
+        data.diasArmazenagem = Math.max(0, Math.floor((new Date(entregaDate).getTime() - new Date(chegada).getTime()) / (1000 * 60 * 60 * 24)));
+      }
     }
   }
 

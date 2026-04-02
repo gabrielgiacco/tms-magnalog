@@ -196,6 +196,7 @@ model Entrega {
   valorDescarga    Float     @default(0)
   valorArmazenagem Float     @default(0)
   diasArmazenagem  Int       @default(0)
+  quantidadePaletes Int      @default(0)
   
   // Custos e Acerto do Motorista Terceiro (Novo Controle Financeiro)
   valorMotorista        Float     @default(0) // Valor combinado para a viagem
@@ -357,6 +358,16 @@ model ContaPagar {
 
   @@index([rotaId])
   @@index([entregaId])
+}
+
+model TabelaArmazenagem {
+  id              String   @id @default(cuid())
+  cnpjCliente     String   @unique
+  nomeCliente     String
+  diasFree        Int      @default(0)
+  valorPaleteDia  Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model QualidadeOperacional {

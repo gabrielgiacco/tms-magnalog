@@ -148,6 +148,7 @@ export async function POST(req: NextRequest) {
         rotaId: body.rotaId || null,
         pesoTotal: body.pesoTotal || 0,
         volumeTotal: body.volumeTotal || 0,
+        quantidadePaletes: body.quantidadePaletes || 0,
         status: body.status || "PROGRAMADO",
         observacoes: body.observacoes,
         valorFrete: body.valorFrete || 0,

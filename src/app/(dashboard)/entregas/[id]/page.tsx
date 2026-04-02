@@ -58,6 +58,7 @@ export default function EntregaDetailPage() {
       motoristaId: e.motoristaId || "", veiculoId: e.veiculoId || "",
       valorFrete: String(e.valorFrete || 0), valorDescarga: String(e.valorDescarga || 0),
       valorArmazenagem: String(e.valorArmazenagem || 0),
+      quantidadePaletes: String(e.quantidadePaletes || 0),
       valorMotorista: String(e.valorMotorista || 0), valorSaida: String(e.valorSaida || 0),
       adiantamentoMotorista: String(e.adiantamentoMotorista || 0), descontosMotorista: String(e.descontosMotorista || 0),
       dataAdiantamento: e.dataAdiantamento ? e.dataAdiantamento.slice(0, 10) : "",
@@ -96,6 +97,7 @@ export default function EntregaDetailPage() {
           valorFrete: parseFloat(editForm.valorFrete) || 0,
           valorDescarga: parseFloat(editForm.valorDescarga) || 0,
           valorArmazenagem: parseFloat(editForm.valorArmazenagem) || 0,
+          quantidadePaletes: parseInt(editForm.quantidadePaletes) || 0,
           valorMotorista: parseFloat(editForm.valorMotorista) || 0,
           valorSaida: parseFloat(editForm.valorSaida) || 0,
           adiantamentoMotorista: parseFloat(editForm.adiantamentoMotorista) || 0,
@@ -281,6 +283,7 @@ export default function EntregaDetailPage() {
                   <Field label="Motorista" value={entrega.motorista?.nome} />
                   <Field label="Veículo" value={entrega.veiculo ? `${entrega.veiculo.placa} — ${entrega.veiculo.tipo}` : "—"} />
                   <Field label="Rota" value={entrega.rota?.codigo} mono />
+                  <Field label="Paletes" value={entrega.quantidadePaletes > 0 ? String(entrega.quantidadePaletes) : "—"} />
                   <Field label="Data Chegada" value={formatDate(entrega.dataChegada)} mono />
                   <Field label="Data Agendada" value={formatDate(entrega.dataAgendada)} mono />
                   <Field label="Data Entrega" value={formatDate(entrega.dataEntrega)} mono />
@@ -298,6 +301,17 @@ export default function EntregaDetailPage() {
                     <span className="text-[10px] font-bold">RECEITA CLIENTE</span>
                     <span className="font-mono text-xs">{formatCurrency(entrega.valorFrete)}</span>
                   </div>
+                  {entrega.valorArmazenagem > 0 && (
+                    <div className="flex justify-between items-center bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg border border-amber-100">
+                      <span className="text-[10px] font-bold">ARMAZENAGEM</span>
+                      <span className="font-mono text-xs">{formatCurrency(entrega.valorArmazenagem)}</span>
+                    </div>
+                  )}
+                  {entrega.diasArmazenagem > 0 && (
+                    <div className="text-[10px]" style={{ color: "var(--text3)" }}>
+                      {entrega.diasArmazenagem} dia(s) &bull; {entrega.quantidadePaletes || 0} palete(s)
+                    </div>
+                  )}
                   <div className="text-[10px] font-bold text-slate-400 uppercase mt-2">Custo Motorista (Terceiro)</div>
                   <Field label="Valor Combinado" value={formatCurrency(entrega.valorMotorista)} color="#f97316" />
                   <Field label="Saldo a Pagar" value={formatCurrency(entrega.saldoMotorista)} color={entrega.saldoMotorista > 0 ? "#f97316" : "#10b981"} />
@@ -430,6 +444,7 @@ export default function EntregaDetailPage() {
               <option value="COM_RESSALVA">Com Ressalva</option>
             </Select>
             
+            <Input label="Qtd Paletes" type="number" value={editForm.quantidadePaletes} onChange={(e) => set("quantidadePaletes", e.target.value)} />
             <div className="col-span-2 py-2 border-b text-[10px] font-bold text-slate-400 uppercase">Valores</div>
             <Input label="Valor Frete Cliente" type="number" value={editForm.valorFrete} onChange={(e) => set("valorFrete", e.target.value)} />
             <Input label="Valor Combinado Motorista" type="number" value={editForm.valorMotorista} onChange={(e) => set("valorMotorista", e.target.value)} />

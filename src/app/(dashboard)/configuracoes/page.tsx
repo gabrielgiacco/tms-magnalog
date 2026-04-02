@@ -1,10 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { Topbar } from "@/components/layout/Topbar";
 import { Card, Button, Input, Select } from "@/components/ui";
 import toast from "react-hot-toast";
-import { Settings, User, Shield, Bell, Globe, Palette, Save } from "lucide-react";
+import { Settings, User, Shield, Bell, Globe, Palette, Save, Warehouse, Plus, Trash2, Edit2 } from "lucide-react";
 
 export default function ConfiguracoesPage() {
   const { data: session } = useSession();
@@ -12,6 +12,68 @@ export default function ConfiguracoesPage() {
 
   const [senhaForm, setSenhaForm] = useState({ atual: "", nova: "", confirmar: "" });
   const [saving, setSaving] = useState(false);
+
+  // Armazenagem (admin only)
+  const [tabelas, setTabelas] = useState<any[]>([]);
+  const [loadingTabelas, setLoadingTabelas] = useState(false);
+  const [armForm, setArmForm] = useState({ cnpjCliente: "", nomeCliente: "", diasFree: "0", valorPaleteDia: "0" });
+  const [editingArm, setEditingArm] = useState<string | null>(null);
+  const [savingArm, setSavingArm] = useState(false);
+
+  const fetchTabelas = useCallback(async () => {
+    if (user?.role !== "ADMIN") return;
+    setLoadingTabelas(true);
+    try {
+      const res = await fetch("/api/armazenagem");
+      if (res.ok) setTabelas(await res.json());
+    } finally { setLoadingTabelas(false); }
+  }, [user?.role]);
+
+  useEffect(() => { fetchTabelas(); }, [fetchTabelas]);
+
+  async function handleSaveArm() {
+    if (!armForm.cnpjCliente || !armForm.nomeCliente) { toast.error("CNPJ e nome são obrigatórios"); return; }
+    setSavingArm(true);
+    try {
+      const res = await fetch("/api/armazenagem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cnpjCliente: armForm.cnpjCliente,
+          nomeCliente: armForm.nomeCliente,
+          diasFree: parseInt(armForm.diasFree) || 0,
+          valorPaleteDia: parseFloat(armForm.valorPaleteDia) || 0,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(editingArm ? "Tabela atualizada" : "Tabela adicionada");
+      setArmForm({ cnpjCliente: "", nomeCliente: "", diasFree: "0", valorPaleteDia: "0" });
+      setEditingArm(null);
+      fetchTabelas();
+    } catch { toast.error("Erro ao salvar"); }
+    finally { setSavingArm(false); }
+  }
+
+  async function handleDeleteArm(id: string) {
+    if (!confirm("Excluir esta tabela de armazenagem?")) return;
+    await fetch("/api/armazenagem", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    fetchTabelas();
+    toast.success("Tabela removida");
+  }
+
+  function startEditArm(t: any) {
+    setEditingArm(t.id);
+    setArmForm({
+      cnpjCliente: t.cnpjCliente,
+      nomeCliente: t.nomeCliente,
+      diasFree: String(t.diasFree),
+      valorPaleteDia: String(t.valorPaleteDia),
+    });
+  }
 
   async function handleSenha() {
     if (!senhaForm.atual) {
@@ -123,6 +185,68 @@ export default function ConfiguracoesPage() {
               </Button>
             </div>
           </Section>
+
+          {/* Tabela de Armazenagem — admin only */}
+          {user?.role === "ADMIN" && (
+            <Section icon={Warehouse} title="Tabela de Armazenagem por Cliente">
+              <p className="text-xs mb-4" style={{ color: "var(--text3)" }}>
+                Configure dias free e valor por palete/dia para cada cliente. O cálculo automático usa: (dias armazenados - dias free) x paletes x valor/dia.
+              </p>
+
+              {/* Form */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <Input label="CNPJ do Cliente" value={armForm.cnpjCliente} disabled={!!editingArm}
+                  onChange={(e) => setArmForm((f) => ({ ...f, cnpjCliente: e.target.value }))} placeholder="00.000.000/0001-00" />
+                <Input label="Nome / Razão Social" value={armForm.nomeCliente}
+                  onChange={(e) => setArmForm((f) => ({ ...f, nomeCliente: e.target.value }))} placeholder="Ex: Unicharm" />
+                <Input label="Dias Free" type="number" value={armForm.diasFree}
+                  onChange={(e) => setArmForm((f) => ({ ...f, diasFree: e.target.value }))} placeholder="15" />
+                <Input label="R$ / Palete / Dia" type="number" step="0.01" value={armForm.valorPaleteDia}
+                  onChange={(e) => setArmForm((f) => ({ ...f, valorPaleteDia: e.target.value }))} placeholder="7.00" />
+              </div>
+              <div className="flex gap-2 mb-5">
+                <Button size="sm" onClick={handleSaveArm} loading={savingArm}>
+                  {editingArm ? <><Save size={13} /> Atualizar</> : <><Plus size={13} /> Adicionar</>}
+                </Button>
+                {editingArm && (
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    setEditingArm(null);
+                    setArmForm({ cnpjCliente: "", nomeCliente: "", diasFree: "0", valorPaleteDia: "0" });
+                  }}>Cancelar</Button>
+                )}
+              </div>
+
+              {/* Lista */}
+              {loadingTabelas ? (
+                <p className="text-xs text-center py-4" style={{ color: "var(--text3)" }}>Carregando...</p>
+              ) : tabelas.length === 0 ? (
+                <p className="text-xs text-center py-4" style={{ color: "var(--text3)" }}>Nenhuma tabela cadastrada</p>
+              ) : (
+                <div className="space-y-2">
+                  {tabelas.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between p-3 rounded-lg" style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold">{t.nomeCliente}</div>
+                        <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>
+                          CNPJ: {t.cnpjCliente} &bull; {t.diasFree} dias free &bull; R$ {Number(t.valorPaleteDia).toFixed(2)}/palete/dia
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5 ml-3">
+                        <button onClick={() => startEditArm(t)} className="p-1.5 rounded-lg hover:opacity-70 transition-all"
+                          style={{ background: "var(--surface)", color: "var(--text2)" }}>
+                          <Edit2 size={12} />
+                        </button>
+                        <button onClick={() => handleDeleteArm(t.id)} className="p-1.5 rounded-lg hover:opacity-70 transition-all"
+                          style={{ background: "rgba(239,68,68,.1)", color: "#ef4444" }}>
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+          )}
 
           {/* Notificações */}
           <Section icon={Bell} title="Notificações">
