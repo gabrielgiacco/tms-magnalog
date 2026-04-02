@@ -6,6 +6,23 @@ import { Card, Button, Input, Select } from "@/components/ui";
 import toast from "react-hot-toast";
 import { Settings, User, Shield, Bell, Globe, Palette, Save, Warehouse, Plus, Trash2, Edit2 } from "lucide-react";
 
+function Section({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-5" style={{ borderBottom: "1px solid var(--border)", paddingBottom: "14px" }}>
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center"
+          style={{ background: "rgba(249,115,22,.1)", border: "1px solid rgba(249,115,22,.2)" }}
+        >
+          <Icon size={15} style={{ color: "var(--accent)" }} />
+        </div>
+        <h2 className="font-head text-sm font-bold">{title}</h2>
+      </div>
+      {children}
+    </Card>
+  );
+}
+
 export default function ConfiguracoesPage() {
   const { data: session } = useSession();
   const user = session?.user as any;
@@ -107,21 +124,6 @@ export default function ConfiguracoesPage() {
       setSaving(false);
     }
   }
-
-  const Section = ({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) => (
-    <Card>
-      <div className="flex items-center gap-3 mb-5" style={{ borderBottom: "1px solid var(--border)", paddingBottom: "14px" }}>
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center"
-          style={{ background: "rgba(249,115,22,.1)", border: "1px solid rgba(249,115,22,.2)" }}
-        >
-          <Icon size={15} style={{ color: "var(--accent)" }} />
-        </div>
-        <h2 className="font-head text-sm font-bold">{title}</h2>
-      </div>
-      {children}
-    </Card>
-  );
 
   return (
     <>
