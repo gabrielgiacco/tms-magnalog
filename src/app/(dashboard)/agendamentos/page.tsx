@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Topbar } from "@/components/layout/Topbar";
 import {
-  Button, Card, Loading, Empty, StatusBadge,
+  Button, Card, Loading, Empty, StatusBadge, Modal,
   Table, Th, Td, Tr,
 } from "@/components/ui";
 import { formatCurrency, formatDate, formatWeight, formatCNPJ } from "@/lib/utils";
@@ -31,6 +31,9 @@ export default function AgendamentosPage() {
   const [calMes, setCalMes] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
   const [calEntregas, setCalEntregas] = useState<any[]>([]);
   const [loadingCal, setLoadingCal] = useState(false);
+
+  // Day detail modal
+  const [selectedDay, setSelectedDay] = useState<{ day: number; entregas: any[] } | null>(null);
 
   // Debounce search
   useEffect(() => {
@@ -120,6 +123,7 @@ export default function AgendamentosPage() {
 
   // Calendar helpers
   const DIAS_SEMANA = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
+  const DIAS_SEMANA_FULL = ["Domingo", "Segunda-Feira", "Terça-Feira", "Quarta-Feira", "Quinta-Feira", "Sexta-Feira", "Sábado"];
   const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
   function buildCalendarDays() {
@@ -337,7 +341,7 @@ export default function AgendamentosPage() {
                         <div className="flex-1 space-y-0.5 overflow-hidden">
                           {dayEntregas.slice(0, MAX_SHOW).map((e) => (
                             <div key={e.id}
-                              onClick={() => router.push(`/entregas/${e.id}`)}
+                              onClick={(ev) => { ev.stopPropagation(); router.push(`/entregas/${e.id}`); }}
                               className="px-1.5 py-1 rounded text-[10px] font-medium leading-tight truncate cursor-pointer hover:opacity-80 transition-opacity"
                               style={{
                                 background: ["ENTREGUE", "FINALIZADO"].includes(e.status) ? "rgba(16,185,129,.1)" : dateStr < hojeStr ? "rgba(239,68,68,.08)" : "rgba(59,130,246,.08)",
@@ -350,9 +354,12 @@ export default function AgendamentosPage() {
                             </div>
                           ))}
                           {dayEntregas.length > MAX_SHOW && (
-                            <div className="text-[10px] font-medium px-1" style={{ color: "var(--accent)" }}>
+                            <button
+                              onClick={(ev) => { ev.stopPropagation(); setSelectedDay({ day, entregas: dayEntregas }); }}
+                              className="text-[10px] font-medium px-1 hover:underline cursor-pointer"
+                              style={{ color: "var(--accent)" }}>
                               +{dayEntregas.length - MAX_SHOW} mais
-                            </div>
+                            </button>
                           )}
                         </div>
                       </div>
@@ -364,6 +371,51 @@ export default function AgendamentosPage() {
           </Card>
         )}
       </div>
+
+      {/* Day Detail Modal */}
+      <Modal open={!!selectedDay} onClose={() => setSelectedDay(null)}
+        title={selectedDay ? (() => {
+          const d = new Date(calMes.year, calMes.month, selectedDay.day);
+          return `${DIAS_SEMANA_FULL[d.getDay()]}, ${selectedDay.day} de ${MESES[calMes.month]}`;
+        })() : ""}
+        size="md">
+        {selectedDay && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: "var(--accent)" }}>Entregas do Dia</span>
+              <span className="text-xs font-bold px-2 py-1 rounded-lg" style={{ background: "rgba(59,130,246,.1)", color: "#3b82f6" }}>
+                {selectedDay.entregas.length} entrega(s)
+              </span>
+            </div>
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+              {selectedDay.entregas.map((e) => (
+                <div key={e.id}
+                  onClick={() => { setSelectedDay(null); router.push(`/entregas/${e.id}`); }}
+                  className="p-3 rounded-xl cursor-pointer hover:shadow-md transition-all"
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
+                  <div className="flex items-start justify-between mb-1">
+                    <span className="text-sm font-semibold leading-tight flex-1 mr-2">{e.razaoSocial}</span>
+                    <StatusBadge status={e.status} />
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px]" style={{ color: "var(--text3)" }}>
+                    {e.motorista?.nome && (
+                      <span className="flex items-center gap-1">
+                        <span>👤</span> {e.motorista.nome}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <span>📍</span> {e.cidade}{e.uf ? `, ${e.uf}` : ""}
+                    </span>
+                    {e.notas && e.notas.length > 0 && (
+                      <span className="font-mono">NF {e.notas.map((n: any) => n.numero).join(", ")}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }
