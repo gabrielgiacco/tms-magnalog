@@ -3,7 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(req: NextRequest) {
+export const dynamic = "force-dynamic";
+
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
@@ -11,11 +13,9 @@ export async function GET(req: NextRequest) {
     const faturas = await prisma.fatura.findMany({
       orderBy: { createdAt: "desc" },
       include: {
-        cliente: true,
-        ctes: true,
-        reembolsos: true, // Se existirem no banco como ContaPagar vinculada
-        _count: { select: { ctes: true } }
-      }
+        ctes: { select: { id: true, numero: true, valorReceber: true, dataEmissao: true } },
+        _count: { select: { ctes: true } },
+      },
     });
 
     return NextResponse.json(faturas);
@@ -30,34 +30,35 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
     const body = await req.json();
-    const { cnpj, razaoSocial, cteIds, vencimento } = body;
+    const { cnpj, nomeCliente, cteIds, dataVencimento } = body;
 
-    // Achar cliente pelo CNPJ (ou criar) para relacionar
-    const cliente = await prisma.cliente.upsert({
-      where: { cnpj },
-      update: { razaoSocial: razaoSocial || "Cliente do Faturamento" },
-      create: { cnpj, razaoSocial: razaoSocial || "Cliente do Faturamento" }
-    });
+    if (!cnpj || !cteIds?.length) {
+      return NextResponse.json({ error: "CNPJ e CT-es são obrigatórios" }, { status: 400 });
+    }
 
-    // Calcular soma
+    // Calcular soma dos CTes selecionados
     const ctes = await prisma.cTe.findMany({ where: { id: { in: cteIds } } });
-    const valorTotal = ctes.reduce((sum, cte) => sum + cte.valor, 0);
+    const valorFretes = ctes.reduce((sum, cte) => sum + cte.valorReceber, 0);
 
-    // Gerar num fatura
+    // Gerar numero da fatura
     const count = await prisma.fatura.count();
-    const nfNum = `FAT-${String(count + 1).padStart(5, '0')}`;
+    const numero = `FAT-${String(count + 1).padStart(5, "0")}`;
 
     const fatura = await prisma.fatura.create({
       data: {
-        numero: nfNum,
-        clienteId: cliente.id,
-        valorTotal,
-        vencimento: vencimento ? new Date(vencimento) : new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 dias padrao
+        numero,
+        clienteCnpj: cnpj.replace(/\D/g, ""),
+        clienteNome: nomeCliente || "Cliente",
+        valorFretes,
+        valorTotal: valorFretes,
+        dataVencimento: dataVencimento ? new Date(dataVencimento) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: "ABERTA",
-        ctes: {
-          connect: cteIds.map((id: string) => ({ id }))
-        }
-      }
+        ctes: { connect: cteIds.map((id: string) => ({ id })) },
+      },
+      include: {
+        ctes: { select: { id: true, numero: true, valorReceber: true } },
+        _count: { select: { ctes: true } },
+      },
     });
 
     return NextResponse.json(fatura, { status: 201 });
@@ -68,13 +69,20 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
     const body = await req.json();
+    const data: any = {};
+    if (body.status) data.status = body.status;
+    if (body.dataVencimento) data.dataVencimento = new Date(body.dataVencimento);
+    if (body.observacoes !== undefined) data.observacoes = body.observacoes;
+
     const fatura = await prisma.fatura.update({
       where: { id: body.id },
-      data: {
-        status: body.status, // "PAGA" | "CANCELADA"
-      }
+      data,
     });
+
     return NextResponse.json(fatura);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

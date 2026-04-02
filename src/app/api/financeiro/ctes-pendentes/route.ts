@@ -3,40 +3,45 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(req: NextRequest) {
+export const dynamic = "force-dynamic";
+
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
     const ctes = await prisma.cTe.findMany({
       where: { faturaId: null },
-      orderBy: { dataEmissao: "asc" },
+      orderBy: { dataEmissao: "desc" },
       include: {
-        entrega: {
-          select: {
-            codigo: true,
-            status: true,
-            notas: { select: { numero: true, chaveAcesso: true } }
-          }
-        }
-      }
+        notas: {
+          select: { numero: true, entregaId: true, destinatarioRazao: true },
+        },
+      },
     });
 
-    // Agrupar no backend para facilitar a visualização no Frontend por "Tomador"
-    const grouped = ctes.reduce((acc: any, cte) => {
-      const cnpj = cte.tomadorCNPJ || "Sem CNPJ";
-      if (!acc[cnpj]) {
-        acc[cnpj] = {
+    // Agrupar por tomador (cliente que paga o frete)
+    const grouped: Record<string, any> = {};
+    for (const cte of ctes) {
+      const cnpj = cte.tomadorCnpj || "SEM_CNPJ";
+      if (!grouped[cnpj]) {
+        grouped[cnpj] = {
           tomadorNome: cte.tomadorNome || "Tomador Desconhecido",
-          tomadorCNPJ: cnpj,
+          tomadorCnpj: cnpj,
           totalValor: 0,
-          ctes: []
+          ctes: [],
         };
       }
-      acc[cnpj].ctes.push(cte);
-      acc[cnpj].totalValor += cte.valor;
-      return acc;
-    }, {});
+      grouped[cnpj].ctes.push({
+        id: cte.id,
+        numero: cte.numero,
+        chaveAcesso: cte.chaveAcesso,
+        dataEmissao: cte.dataEmissao,
+        valorReceber: cte.valorReceber,
+        notas: cte.notas,
+      });
+      grouped[cnpj].totalValor += cte.valorReceber;
+    }
 
     return NextResponse.json(Object.values(grouped));
   } catch (error: any) {
