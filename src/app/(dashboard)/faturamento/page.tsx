@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button, Card, Loading, Empty, Modal, Input, Table, Th, Td, Tr } from "@/components/ui";
 import { formatCurrency, formatDate, formatCNPJ } from "@/lib/utils";
-import { RefreshCw, FilePlus, CheckCircle2, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { RefreshCw, FilePlus, CheckCircle2, Eye, ChevronDown, ChevronUp, Search } from "lucide-react";
 
 export default function FaturamentoPage() {
   const [ctesAgrupados, setCtesAgrupados] = useState<any[]>([]);
@@ -25,6 +25,14 @@ export default function FaturamentoPage() {
 
   // Expandir grupo
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+
+  // Pesquisa
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.toLowerCase().trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -124,6 +132,29 @@ export default function FaturamentoPage() {
     }
   }
 
+  // Filtrar por pesquisa
+  const filteredCtes = debouncedSearch
+    ? ctesAgrupados.map((g) => {
+        const matchGroup = g.tomadorNome?.toLowerCase().includes(debouncedSearch) || g.tomadorCnpj?.includes(debouncedSearch);
+        const filteredGroupCtes = g.ctes.filter((c: any) =>
+          c.numero?.toLowerCase().includes(debouncedSearch) ||
+          c.notas?.some((n: any) => n.numero?.toLowerCase().includes(debouncedSearch) || n.destinatarioRazao?.toLowerCase().includes(debouncedSearch))
+        );
+        if (matchGroup) return g; // grupo inteiro combina
+        if (filteredGroupCtes.length === 0) return null;
+        return { ...g, ctes: filteredGroupCtes, totalValor: filteredGroupCtes.reduce((s: number, c: any) => s + c.valorReceber, 0) };
+      }).filter(Boolean) as any[]
+    : ctesAgrupados;
+
+  const filteredFaturas = debouncedSearch
+    ? faturas.filter((f) =>
+        f.numero?.toLowerCase().includes(debouncedSearch) ||
+        f.clienteNome?.toLowerCase().includes(debouncedSearch) ||
+        f.clienteCnpj?.includes(debouncedSearch) ||
+        f.ctes?.some((c: any) => c.numero?.toLowerCase().includes(debouncedSearch))
+      )
+    : faturas;
+
   // Totais
   const totalPendenteCtes = ctesAgrupados.reduce((s, g) => s + g.totalValor, 0);
   const totalFaturasAbertas = faturas.filter((f) => f.status === "ABERTA").reduce((s, f) => s + f.valorTotal, 0);
@@ -162,6 +193,17 @@ export default function FaturamentoPage() {
           </Card>
         </div>
 
+        {/* Pesquisa */}
+        <div className="relative w-full max-w-md">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por CT-e, NF, cliente..."
+            className="w-full pl-9 pr-3 py-2.5 rounded-lg text-sm outline-none bg-[var(--surface)] border border-[var(--border)] text-[var(--text)]"
+          />
+        </div>
+
         {/* Barra de ação quando CTes selecionados */}
         {selectedCteIds.length > 0 && (
           <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "rgba(16,185,129,.08)", border: "1px solid rgba(16,185,129,.25)" }}>
@@ -183,11 +225,11 @@ export default function FaturamentoPage() {
         {/* CT-es Pendentes agrupados por tomador */}
         <div>
           <h2 className="text-sm font-head font-bold mb-3" style={{ color: "var(--text2)" }}>CT-es Aguardando Faturamento</h2>
-          {ctesAgrupados.length === 0 ? (
-            <Card><Empty icon="🧾" text="Nenhum CT-e pendente de faturamento" /></Card>
+          {filteredCtes.length === 0 ? (
+            <Card><Empty icon="🧾" text={debouncedSearch ? "Nenhum CT-e encontrado" : "Nenhum CT-e pendente de faturamento"} /></Card>
           ) : (
             <div className="space-y-3">
-              {ctesAgrupados.map((g) => {
+              {filteredCtes.map((g) => {
                 const expanded = expandedGroups.includes(g.tomadorCnpj);
                 const allSelected = g.ctes.every((c: any) => selectedCteIds.includes(c.id));
                 return (
@@ -258,8 +300,8 @@ export default function FaturamentoPage() {
         <div>
           <h2 className="text-sm font-head font-bold mb-3" style={{ color: "var(--text2)" }}>Faturas</h2>
           <Card className="p-0 overflow-hidden">
-            {faturas.length === 0 ? (
-              <Empty icon="💸" text="Nenhuma fatura gerada" />
+            {filteredFaturas.length === 0 ? (
+              <Empty icon="💸" text={debouncedSearch ? "Nenhuma fatura encontrada" : "Nenhuma fatura gerada"} />
             ) : (
               <Table>
                 <thead>
@@ -274,7 +316,7 @@ export default function FaturamentoPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {faturas.map((f) => (
+                  {filteredFaturas.map((f) => (
                     <Tr key={f.id}>
                       <Td><span className="font-mono text-xs font-bold">{f.numero}</span></Td>
                       <Td>
