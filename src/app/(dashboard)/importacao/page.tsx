@@ -8,7 +8,7 @@ import { formatWeight, formatDate, formatCurrency, formatCNPJ } from "@/lib/util
 import {
   Upload, FileText, CheckCircle, XCircle, AlertTriangle, X, ChevronRight,
   Search, RefreshCw, ChevronLeft, ExternalLink, FileSearch,
-  Printer, Download, RotateCcw, FileX, Eye, ZoomIn, ZoomOut, Key, Loader2,
+  Printer, Download, RotateCcw, FileX, Eye, ZoomIn, ZoomOut, Key, Loader2, PackagePlus, Check,
 } from "lucide-react";
 import { DanfeViewer } from "@/components/danfe/DanfeViewer";
 import { DanfeData, parseDanfeXML } from "@/lib/danfe-parser";
@@ -70,6 +70,8 @@ export default function ImportacaoPage() {
   const [zoom, setZoom] = useState(100);
   const [chave, setChave] = useState("");
   const [danfeLoading, setDanfeLoading] = useState(false);
+  const [danfeImporting, setDanfeImporting] = useState(false);
+  const [danfeImportResult, setDanfeImportResult] = useState<{ importadas: number; agrupadas: number; duplicadas: number } | null>(null);
   const danfeRef = useRef<HTMLDivElement>(null);
 
   // ══════════════════════════════════════
@@ -162,7 +164,25 @@ export default function ImportacaoPage() {
 
   function handleDanfeDrop(e: React.DragEvent) { e.preventDefault(); setDanfeDragging(false); const file = e.dataTransfer.files?.[0]; if (file) processFile(file); }
   function handleDanfeFileSelect(e: React.ChangeEvent<HTMLInputElement>) { const file = e.target.files?.[0]; if (file) processFile(file); e.target.value = ""; }
-  function handleDanfeReset() { setDanfeData(null); setXmlContent(null); setFileName(""); setDanfeError(null); setZoom(100); setChave(""); }
+  function handleDanfeReset() { setDanfeData(null); setXmlContent(null); setFileName(""); setDanfeError(null); setZoom(100); setChave(""); setDanfeImportResult(null); }
+  async function handleAddToEntrega() {
+    if (!xmlContent) return;
+    setDanfeImporting(true);
+    try {
+      const blob = new Blob([xmlContent], { type: "text/xml" });
+      const file = new File([blob], fileName || "nfe.xml", { type: "text/xml" });
+      const formData = new FormData();
+      formData.append("files", file);
+      const res = await fetch("/api/importacao", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Erro ao importar NF-e"); return; }
+      setDanfeImportResult({ importadas: data.importadas, agrupadas: data.agrupadas, duplicadas: data.duplicadas });
+      if (data.duplicadas > 0) toast("NF-e já importada anteriormente", { icon: "⚠️" });
+      else if (data.agrupadas > 0) toast.success("NF-e agrupada a uma entrega existente!");
+      else if (data.importadas > 0) toast.success("NF-e importada e nova entrega criada!");
+    } catch { toast.error("Erro ao importar NF-e"); }
+    finally { setDanfeImporting(false); }
+  }
   function handleDownloadXml() {
     if (!xmlContent || !fileName) return;
     const blob = new Blob([xmlContent], { type: "text/xml" }); const url = URL.createObjectURL(blob);
@@ -531,6 +551,16 @@ export default function ImportacaoPage() {
                         <span className="text-[10px] font-mono px-1 min-w-[36px] text-center" style={{ color: "var(--text2)" }}>{zoom}%</span>
                         <button onClick={() => setZoom((z) => Math.min(150, z + 10))} className="p-1 rounded hover:opacity-70 transition-all" style={{ color: "var(--text2)" }}><ZoomIn size={14} /></button>
                       </div>
+                      {!danfeImportResult ? (
+                        <Button size="sm" onClick={handleAddToEntrega} disabled={danfeImporting} style={{ background: "#059669", borderColor: "#059669" }}>
+                          {danfeImporting ? <><Loader2 size={14} className="animate-spin" /> Importando...</> : <><PackagePlus size={14} /> Adicionar à Entrega</>}
+                        </Button>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: "rgba(5,150,105,.1)", color: "#059669" }}>
+                          <Check size={14} />
+                          {danfeImportResult.duplicadas > 0 ? "NF-e já importada" : danfeImportResult.agrupadas > 0 ? "Agrupada à entrega" : "Nova entrega criada"}
+                        </span>
+                      )}
                       <Button variant="ghost" size="sm" onClick={handleDownloadXml}><Download size={14} /> XML</Button>
                       <Button variant="ghost" size="sm" onClick={() => window.print()}><Printer size={14} /> Imprimir</Button>
                       <Button variant="ghost" size="sm" onClick={handleDanfeReset}><RotateCcw size={14} /> Novo</Button>
