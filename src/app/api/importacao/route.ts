@@ -148,8 +148,13 @@ export async function POST(req: NextRequest) {
         });
 
         if (existing) {
-          results.duplicadas++;
-          continue;
+          // Se a NF é órfã (entrega foi deletada), deletar para permitir reimportação
+          if (!existing.entregaId) {
+            await prisma.notaFiscal.delete({ where: { id: existing.id } });
+          } else {
+            results.duplicadas++;
+            continue;
+          }
         }
 
         // 2. Buscar ou criar cliente

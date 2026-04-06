@@ -178,6 +178,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const user = (session.user as any);
   if (user.role !== "ADMIN") return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
 
+  // Deletar registros relacionados antes de deletar a entrega
+  await prisma.notaFiscal.deleteMany({ where: { entregaId: params.id } });
+
   await prisma.entrega.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }
