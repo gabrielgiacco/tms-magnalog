@@ -15,11 +15,12 @@ import {
   Search,
   FileX,
   Eye,
-  X,
   ZoomIn,
   ZoomOut,
   Key,
   Loader2,
+  PackagePlus,
+  Check,
 } from "lucide-react";
 
 type InputMode = "chave" | "xml";
@@ -34,6 +35,8 @@ export default function ConsultaDanfePage() {
   const [zoom, setZoom] = useState(100);
   const [chave, setChave] = useState("");
   const [loading, setLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ importadas: number; agrupadas: number; duplicadas: number } | null>(null);
   const danfeRef = useRef<HTMLDivElement>(null);
 
   const processXml = useCallback((content: string, name: string) => {
@@ -130,6 +133,39 @@ export default function ConsultaDanfePage() {
     URL.revokeObjectURL(url);
   }
 
+  async function handleAddToEntrega() {
+    if (!xmlContent) return;
+    setImporting(true);
+    try {
+      const blob = new Blob([xmlContent], { type: "text/xml" });
+      const file = new File([blob], fileName || "nfe.xml", { type: "text/xml" });
+      const formData = new FormData();
+      formData.append("files", file);
+
+      const res = await fetch("/api/importacao", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Erro ao importar NF-e");
+        return;
+      }
+
+      setImportResult({ importadas: data.importadas, agrupadas: data.agrupadas, duplicadas: data.duplicadas });
+
+      if (data.duplicadas > 0) {
+        toast("NF-e já importada anteriormente", { icon: "⚠️" });
+      } else if (data.agrupadas > 0) {
+        toast.success("NF-e agrupada a uma entrega existente!");
+      } else if (data.importadas > 0) {
+        toast.success("NF-e importada e nova entrega criada!");
+      }
+    } catch {
+      toast.error("Erro ao importar NF-e");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   function handleReset() {
     setDanfeData(null);
     setXmlContent(null);
@@ -137,6 +173,7 @@ export default function ConsultaDanfePage() {
     setError(null);
     setZoom(100);
     setChave("");
+    setImportResult(null);
   }
 
   return (
@@ -420,6 +457,29 @@ export default function ConsultaDanfePage() {
                   </button>
                 </div>
 
+                {!importResult ? (
+                  <Button
+                    size="sm"
+                    onClick={handleAddToEntrega}
+                    disabled={importing}
+                    style={{ background: "#059669", borderColor: "#059669" }}
+                  >
+                    {importing ? (
+                      <><Loader2 size={14} className="animate-spin" /> Importando...</>
+                    ) : (
+                      <><PackagePlus size={14} /> Adicionar à Entrega</>
+                    )}
+                  </Button>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: "rgba(5,150,105,.1)", color: "#059669" }}>
+                    <Check size={14} />
+                    {importResult.duplicadas > 0
+                      ? "NF-e já importada"
+                      : importResult.agrupadas > 0
+                      ? "Agrupada à entrega"
+                      : "Nova entrega criada"}
+                  </span>
+                )}
                 <Button variant="ghost" size="sm" onClick={handleDownloadXml}>
                   <Download size={14} /> XML
                 </Button>
