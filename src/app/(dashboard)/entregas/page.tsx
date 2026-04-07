@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
@@ -114,9 +114,9 @@ export default function EntregasPage() {
   const [veiculos, setVeiculos] = useState<any[]>([]);
 
   // Debounce search
-  const isFirstRender = useState(true);
+  const isFirstRender = useRef(true);
   useEffect(() => {
-    if (isFirstRender[0]) { isFirstRender[0] = false; return; }
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
     const t = setTimeout(() => {
       setDebouncedSearch(search);
       setPage(1);
