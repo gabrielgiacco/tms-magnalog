@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button, Card, Loading, StatusBadge, Modal, Input, Select, Textarea, ComboboxMotorista } from "@/components/ui";
 import { formatCurrency, formatDate, formatWeight, formatCNPJ } from "@/lib/utils";
-import { Copy, FileText, History, Package, MapPin, Truck, ChevronLeft, Calendar, User, Clock, CheckCircle2, AlertCircle, Trash2, ShieldCheck, DollarSign, Scissors } from "lucide-react";
+import { Copy, FileText, History, Package, MapPin, Truck, ChevronLeft, Calendar, User, Clock, CheckCircle2, AlertCircle, Trash2, ShieldCheck, DollarSign, Scissors, ChevronDown, ChevronUp, Box, Info, Weight, Layers } from "lucide-react";
 import toast from "react-hot-toast";
 import { QualityScoring } from "@/components/quality/QualityScoring";
 
@@ -251,7 +251,9 @@ export default function EntregaDetailPage() {
 
         {/* Tab Content */}
         {tab === "info" && (
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-4">
+            {/* Top row: Destinatário, Operação, Financeiro */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Destinatário */}
               <Card>
                 <div className="flex items-center gap-2 mb-4">
@@ -318,7 +320,13 @@ export default function EntregaDetailPage() {
                   <StatusBadge status={entrega.statusCanhoto} />
                 </div>
               </Card>
-           </div>
+            </div>
+
+            {/* Notas Fiscais Detail Cards */}
+            {entrega.notas && entrega.notas.length > 0 && entrega.notas.map((nf: any) => (
+              <NFDetailCard key={nf.id} nf={nf} />
+            ))}
+          </div>
         )}
 
         {tab === "historico" && (
@@ -496,5 +504,209 @@ function Field({ label, value, mono, color }: { label: string; value?: string | 
         {value || "—"}
       </div>
     </div>
+  );
+}
+
+function NFDetailCard({ nf }: { nf: any }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasProdutos = nf.produtos && nf.produtos.length > 0;
+  const hasInfoAdicional = nf.infAdicionais && nf.infAdicionais.trim();
+  const hasEmitente = nf.emitente && nf.emitente.razaoSocial;
+
+  return (
+    <Card className="p-0 overflow-hidden">
+      {/* NF Header - always visible */}
+      <div
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50/50 transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.15)" }}>
+            <FileText size={18} className="text-blue-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>NF {nf.numero}</span>
+              {nf.serie && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--surface2)", color: "var(--text3)" }}>Série {nf.serie}</span>}
+            </div>
+            <div className="text-xs truncate" style={{ color: "var(--text2)" }}>
+              {nf.emitenteRazao || "Fornecedor não informado"}
+            </div>
+          </div>
+
+          {/* Summary stats */}
+          <div className="hidden md:flex items-center gap-6 flex-shrink-0">
+            <div className="text-center">
+              <div className="text-[9px] font-mono uppercase text-slate-400">Volumes</div>
+              <div className="text-sm font-bold font-mono" style={{ color: "var(--text)" }}>{nf.volumes || 0}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-[9px] font-mono uppercase text-slate-400">Peso</div>
+              <div className="text-sm font-bold font-mono" style={{ color: "var(--text)" }}>{formatWeight(nf.pesoBruto)}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-[9px] font-mono uppercase text-slate-400">Valor NF</div>
+              <div className="text-sm font-bold font-mono text-emerald-600">{formatCurrency(nf.valorNota)}</div>
+            </div>
+            {hasProdutos && (
+              <div className="text-center">
+                <div className="text-[9px] font-mono uppercase text-slate-400">Itens</div>
+                <div className="text-sm font-bold font-mono" style={{ color: "var(--text)" }}>{nf.produtos.length}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="ml-3 flex-shrink-0">
+          {expanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+        </div>
+      </div>
+
+      {/* Mobile summary stats */}
+      <div className="flex md:hidden items-center gap-4 px-4 pb-3 -mt-1">
+        <span className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>
+          {nf.volumes || 0} vol · {formatWeight(nf.pesoBruto)} · {formatCurrency(nf.valorNota)}
+          {hasProdutos && ` · ${nf.produtos.length} itens`}
+        </span>
+      </div>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div style={{ borderTop: "1px solid var(--border)" }}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
+            {/* Left: Fornecedor + Dados da NF */}
+            <div className="p-4 space-y-4" style={{ borderRight: "1px solid var(--border)" }}>
+              {/* Fornecedor / Emitente */}
+              {hasEmitente && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <User size={13} className="text-slate-400" />
+                    <span className="text-[10px] font-mono uppercase tracking-widest font-bold text-slate-400">Fornecedor / Emitente</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Razão Social" value={nf.emitente.razaoSocial} />
+                    {nf.emitente.fantasia && nf.emitente.fantasia !== "undefined" && <Field label="Nome Fantasia" value={nf.emitente.fantasia} />}
+                    <Field label="CNPJ" value={formatCNPJ(nf.emitente.cnpj)} mono />
+                    {nf.emitente.ie && nf.emitente.ie !== "undefined" && <Field label="Inscrição Estadual" value={nf.emitente.ie} mono />}
+                    <Field label="Cidade / UF" value={`${nf.emitente.cidade}${nf.emitente.uf ? ` — ${nf.emitente.uf}` : ""}`} />
+                    {nf.emitente.endereco && nf.emitente.endereco.trim() && <Field label="Endereço" value={`${nf.emitente.endereco}${nf.emitente.bairro ? `, ${nf.emitente.bairro}` : ""}`} />}
+                    {nf.emitente.telefone && nf.emitente.telefone !== "undefined" && <Field label="Telefone" value={nf.emitente.telefone} />}
+                  </div>
+                </div>
+              )}
+
+              {/* Dados gerais da NF */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText size={13} className="text-slate-400" />
+                  <span className="text-[10px] font-mono uppercase tracking-widest font-bold text-slate-400">Dados da Nota Fiscal</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Número" value={nf.numero} mono />
+                  <Field label="Série" value={nf.serie} mono />
+                  <Field label="Data Emissão" value={formatDate(nf.dataEmissao)} mono />
+                  <Field label="Chave de Acesso" value={nf.chaveAcesso} mono color="#3b82f6" />
+                  <Field label="Volumes" value={String(nf.volumes || 0)} mono />
+                  <Field label="Peso Bruto" value={formatWeight(nf.pesoBruto)} mono />
+                  <Field label="Valor Total NF" value={formatCurrency(nf.valorNota)} color="#10b981" />
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Products table */}
+            <div className="p-4">
+              {hasProdutos && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Box size={13} className="text-slate-400" />
+                    <span className="text-[10px] font-mono uppercase tracking-widest font-bold text-slate-400">
+                      Produtos / Serviços ({nf.produtos.length})
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "var(--border)" }}>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr style={{ background: "var(--surface2)" }}>
+                          <th className="text-left px-2.5 py-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">#</th>
+                          <th className="text-left px-2.5 py-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Descrição</th>
+                          <th className="text-left px-2.5 py-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">NCM</th>
+                          <th className="text-right px-2.5 py-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Qtd</th>
+                          <th className="text-left px-2.5 py-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Un</th>
+                          <th className="text-right px-2.5 py-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Valor Un.</th>
+                          <th className="text-right px-2.5 py-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {nf.produtos.map((p: any, idx: number) => (
+                          <tr key={idx} style={{ borderTop: idx > 0 ? "1px solid var(--border)" : "none" }}
+                            className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-2.5 py-2 font-mono text-slate-400">{idx + 1}</td>
+                            <td className="px-2.5 py-2">
+                              <div className="font-medium leading-tight" style={{ color: "var(--text)" }}>{p.descricao}</div>
+                              {p.codigo && <div className="text-[9px] font-mono text-slate-400 mt-0.5">Cód: {p.codigo}</div>}
+                            </td>
+                            <td className="px-2.5 py-2 font-mono text-slate-500">{p.ncm}</td>
+                            <td className="px-2.5 py-2 text-right font-mono" style={{ color: "var(--text)" }}>
+                              {p.quantidade % 1 === 0 ? p.quantidade : p.quantidade.toFixed(2)}
+                            </td>
+                            <td className="px-2.5 py-2 font-mono text-slate-500">{p.unidade}</td>
+                            <td className="px-2.5 py-2 text-right font-mono text-slate-500">
+                              {formatCurrency(p.valorUnitario)}
+                            </td>
+                            <td className="px-2.5 py-2 text-right font-mono font-bold text-emerald-600">
+                              {formatCurrency(p.valorTotal)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: "2px solid var(--border)", background: "var(--surface2)" }}>
+                          <td colSpan={6} className="px-2.5 py-2 text-right text-[10px] font-bold uppercase text-slate-500">Total Produtos</td>
+                          <td className="px-2.5 py-2 text-right font-mono font-bold text-emerald-700">
+                            {formatCurrency(nf.produtos.reduce((s: number, p: any) => s + p.valorTotal, 0))}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {!hasProdutos && (
+                <div className="text-center py-8 text-slate-400">
+                  <Box size={24} className="mx-auto mb-2 opacity-30" />
+                  <p className="text-xs">Dados de produtos não disponíveis</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom: Additional info */}
+          {hasInfoAdicional && (
+            <div className="p-4" style={{ borderTop: "1px solid var(--border)" }}>
+              <div className="flex items-center gap-2 mb-2">
+                <Info size={13} className="text-slate-400" />
+                <span className="text-[10px] font-mono uppercase tracking-widest font-bold text-slate-400">Dados Adicionais</span>
+              </div>
+              <div className="p-3 rounded-lg text-xs leading-relaxed whitespace-pre-wrap" style={{ background: "var(--surface2)", color: "var(--text2)", border: "1px solid var(--border)" }}>
+                {nf.infAdicionais}
+              </div>
+            </div>
+          )}
+
+          {nf.infFisco && nf.infFisco.trim() && (
+            <div className="px-4 pb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Info size={13} className="text-slate-400" />
+                <span className="text-[10px] font-mono uppercase tracking-widest font-bold text-slate-400">Informações ao Fisco</span>
+              </div>
+              <div className="p-3 rounded-lg text-xs leading-relaxed whitespace-pre-wrap" style={{ background: "rgba(249,115,22,.04)", color: "var(--text2)", border: "1px solid rgba(249,115,22,.12)" }}>
+                {nf.infFisco}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }

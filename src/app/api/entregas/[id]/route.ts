@@ -2,6 +2,65 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { XMLParser } from "fast-xml-parser";
+
+function parseNFProducts(xmlContent: string | null) {
+  if (!xmlContent) return { produtos: [], infAdicionais: "", infFisco: "", emitente: null };
+  try {
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: "@_",
+      parseAttributeValue: false,
+      numberParseOptions: { hex: false, leadingZeros: false, skipLike: /.*/ },
+    });
+    const parsed = parser.parse(xmlContent);
+    const nfe = parsed?.nfeProc?.NFe || parsed?.NFe;
+    const infNFe = nfe?.infNFe;
+    if (!infNFe) return { produtos: [], infAdicionais: "", infFisco: "", emitente: null };
+
+    // Products
+    const detArray = Array.isArray(infNFe.det) ? infNFe.det : infNFe.det ? [infNFe.det] : [];
+    const produtos = detArray.map((d: any) => {
+      const p = d.prod || {};
+      return {
+        codigo: String(p.cProd || ""),
+        descricao: String(p.xProd || ""),
+        ncm: String(p.NCM || ""),
+        cfop: String(p.CFOP || ""),
+        unidade: String(p.uCom || ""),
+        quantidade: parseFloat(String(p.qCom || "0")) || 0,
+        valorUnitario: parseFloat(String(p.vUnCom || "0")) || 0,
+        valorTotal: parseFloat(String(p.vProd || "0")) || 0,
+        ean: String(p.cEAN || ""),
+      };
+    });
+
+    // Additional info
+    const infAdic = infNFe.infAdic || {};
+    const infAdicionais = String(infAdic.infCpl || "");
+    const infFisco = String(infAdic.infAdFisco || "");
+
+    // Emitter full data
+    const emit = infNFe.emit || {};
+    const enderEmit = emit.enderEmit || {};
+    const emitente = {
+      cnpj: String(emit.CNPJ || emit.CPF || ""),
+      razaoSocial: String(emit.xNome || ""),
+      fantasia: String(emit.xFant || ""),
+      ie: String(emit.IE || ""),
+      cidade: String(enderEmit.xMun || ""),
+      uf: String(enderEmit.UF || ""),
+      endereco: `${enderEmit.xLgr || ""} ${enderEmit.nro || ""}`.trim(),
+      bairro: String(enderEmit.xBairro || ""),
+      cep: String(enderEmit.CEP || ""),
+      telefone: String(enderEmit.fone || ""),
+    };
+
+    return { produtos, infAdicionais, infFisco, emitente };
+  } catch {
+    return { produtos: [], infAdicionais: "", infFisco: "", emitente: null };
+  }
+}
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -20,7 +79,15 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   });
 
   if (!entrega) return NextResponse.json({ error: "Não encontrada" }, { status: 404 });
-  return NextResponse.json(entrega);
+
+  // Parse XML of each NF to include products and additional data
+  const notasComProdutos = entrega.notas.map((nf) => {
+    const { produtos, infAdicionais, infFisco, emitente } = parseNFProducts(nf.xmlOriginal);
+    const { xmlOriginal, ...nfSemXml } = nf;
+    return { ...nfSemXml, produtos, infAdicionais, infFisco, emitente };
+  });
+
+  return NextResponse.json({ ...entrega, notas: notasComProdutos });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
