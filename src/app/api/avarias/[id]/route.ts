@@ -82,6 +82,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
     const user = session.user as any;
+    const userId = user.id || user.userId;
     const body = await req.json();
     const data: any = {};
 
@@ -95,7 +96,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     // Auto-set resolution metadata
     if (body.status === "RESOLVIDA" && !body.dataResolucao) {
-      data.resolvidoPorId = user.userId;
+      data.resolvidoPorId = userId;
       data.dataResolucao = new Date();
     }
 

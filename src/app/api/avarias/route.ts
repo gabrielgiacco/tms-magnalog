@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
     const user = session.user as any;
+    const userId = user.id || user.userId;
     const body = await req.json();
 
     // Generate sequential code
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
         descricao: body.descricao,
         observacoes: body.observacoes || null,
         valorPrejuizo,
-        registradoPorId: user.userId,
+        registradoPorId: userId,
         dataOcorrencia: new Date(body.dataOcorrencia),
         localOcorrencia: body.localOcorrencia || null,
         produtos: {
