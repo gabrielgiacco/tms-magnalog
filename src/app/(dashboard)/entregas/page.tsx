@@ -56,26 +56,48 @@ export default function EntregasPage() {
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => {
+    try { const s = sessionStorage.getItem("entregas_filters"); return s ? JSON.parse(s).page || 1 : 1; } catch { return 1; }
+  });
   const [pages, setPages] = useState(1);
 
-  // Filters
-  const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterCidade, setFilterCidade] = useState("");
-  const [mostrarFinalizados, setMostrarFinalizados] = useState(false);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Restore filters from sessionStorage on mount
+  function getSaved() {
+    try {
+      const raw = sessionStorage.getItem("entregas_filters");
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+  const [initialized] = useState(() => getSaved());
 
-  const [showFiltros, setShowFiltros] = useState(false);
-  const [filterCliente, setFilterCliente] = useState("");
-  const [filterDataInicio, setFilterDataInicio] = useState("");
-  const [filterDataFim, setFilterDataFim] = useState("");
-  const [filterFornecedor, setFilterFornecedor] = useState("");
-  const [filterVolume, setFilterVolume] = useState("");
+  // Filters
+  const [search, setSearch] = useState(initialized?.search ?? "");
+  const [filterStatus, setFilterStatus] = useState(initialized?.filterStatus ?? "");
+  const [filterCidade, setFilterCidade] = useState(initialized?.filterCidade ?? "");
+  const [mostrarFinalizados, setMostrarFinalizados] = useState(initialized?.mostrarFinalizados ?? false);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialized?.search ?? "");
+
+  const [showFiltros, setShowFiltros] = useState(initialized?.showFiltros ?? false);
+  const [filterCliente, setFilterCliente] = useState(initialized?.filterCliente ?? "");
+  const [filterDataInicio, setFilterDataInicio] = useState(initialized?.filterDataInicio ?? "");
+  const [filterDataFim, setFilterDataFim] = useState(initialized?.filterDataFim ?? "");
+  const [filterFornecedor, setFilterFornecedor] = useState(initialized?.filterFornecedor ?? "");
+  const [filterVolume, setFilterVolume] = useState(initialized?.filterVolume ?? "");
 
   // Tri-state sort: null → "asc" → "desc" → null
-  const [sortBy, setSortBy] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>(null);
+  const [sortBy, setSortBy] = useState<string | null>(initialized?.sortBy ?? null);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>(initialized?.sortOrder ?? null);
+
+  // Persist filters to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem("entregas_filters", JSON.stringify({
+      search, filterStatus, filterCidade, mostrarFinalizados, showFiltros,
+      filterCliente, filterDataInicio, filterDataFim, filterFornecedor, filterVolume,
+      sortBy, sortOrder, page,
+    }));
+  }, [search, filterStatus, filterCidade, mostrarFinalizados, showFiltros,
+      filterCliente, filterDataInicio, filterDataFim, filterFornecedor, filterVolume,
+      sortBy, sortOrder, page]);
 
   function toggleSort(col: string) {
     if (sortBy !== col) { setSortBy(col); setSortOrder("asc"); }
@@ -92,7 +114,9 @@ export default function EntregasPage() {
   const [veiculos, setVeiculos] = useState<any[]>([]);
 
   // Debounce search
+  const isFirstRender = useState(true);
   useEffect(() => {
+    if (isFirstRender[0]) { isFirstRender[0] = false; return; }
     const t = setTimeout(() => {
       setDebouncedSearch(search);
       setPage(1);
