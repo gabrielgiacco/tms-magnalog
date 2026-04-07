@@ -12,7 +12,7 @@ import {
 import { formatCurrency, formatDate, formatWeight, formatCNPJ } from "@/lib/utils";
 import {
   Plus, Filter, RefreshCw, Search, Eye, ChevronLeft, ChevronRight,
-  Package, MapPin, User, Truck, Trash2, ArrowUp, ArrowDown, ArrowUpDown,
+  Package, MapPin, User, Truck, Trash2, ArrowUp, ArrowDown, ArrowUpDown, X,
 } from "lucide-react";
 
 const STATUS_OPTIONS = [
@@ -243,9 +243,14 @@ export default function EntregasPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar NF, cidade, cliente, motorista..."
-                className="w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none"
+                className="w-full pl-9 pr-9 py-2 rounded-lg text-sm outline-none"
                 style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}
               />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-[var(--border)] transition-colors" style={{ color: "var(--text3)" }}>
+                  <X size={14} />
+                </button>
+              )}
             </div>
             <select
               value={filterStatus}
