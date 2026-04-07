@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
         { notas: { some: { numero: { contains: cliente } } } },
         { notas: { some: { emitenteRazao: { contains: cliente, mode: "insensitive" } } } },
         { notas: { some: { chaveAcesso: { contains: cliente } } } },
+        { motorista: { nome: { contains: cliente, mode: "insensitive" } } },
       ];
       const digits = cliente.replace(/\D/g, "");
       if (digits.length > 0) orConditions.push({ cnpj: { contains: digits } });
