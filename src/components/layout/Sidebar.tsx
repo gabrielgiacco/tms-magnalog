@@ -6,7 +6,7 @@ import { useLayoutStore } from "@/hooks/useLayoutStore";
 import {
   LayoutDashboard, Package, Calendar, Users, FileText,
   DollarSign, Settings, BarChart2, Wallet, FileUp,
-  Truck, Globe, Columns, Route, ShieldCheck,
+  Truck, Globe, Columns, Route, ShieldCheck, AlertTriangle,
   X, ChevronLeft, ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 
@@ -21,6 +21,7 @@ const navItems = [
   { href: "/financeiro", label: "Financeiro", icon: DollarSign, roles: ["ADMIN","FINANCEIRO"] },
   { href: "/faturamento", label: "Faturamento", icon: Wallet, roles: ["ADMIN","FINANCEIRO"] },
   { href: "/relatorios", label: "Relatórios", icon: BarChart2, roles: ["ADMIN","FINANCEIRO"] },
+  { href: "/avarias", label: "Avarias", icon: AlertTriangle, roles: ["ADMIN","OPERACIONAL","CONFERENTE"] },
   { href: "/qualidade", label: "Qualidade", icon: ShieldCheck, roles: ["ADMIN"] },
   { href: "/portal", label: "Portal Cliente", icon: Globe, roles: ["ADMIN","CLIENTE"] },
   { href: "/usuarios", label: "Usuários", icon: Users, roles: ["ADMIN"] },

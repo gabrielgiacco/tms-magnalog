@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button, Card, Loading, StatusBadge, Modal, Input, Select, Textarea, ComboboxMotorista } from "@/components/ui";
 import { formatCurrency, formatDate, formatWeight, formatCNPJ } from "@/lib/utils";
-import { Copy, FileText, History, Package, MapPin, Truck, ChevronLeft, Calendar, User, Clock, CheckCircle2, AlertCircle, Trash2, ShieldCheck, DollarSign, Scissors, ChevronDown, ChevronUp, Box, Info, Weight, Layers } from "lucide-react";
+import { Copy, FileText, History, Package, MapPin, Truck, ChevronLeft, Calendar, User, Clock, CheckCircle2, AlertCircle, Trash2, ShieldCheck, DollarSign, Scissors, ChevronDown, ChevronUp, Box, Info, Weight, Layers, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 import { QualityScoring } from "@/components/quality/QualityScoring";
 
@@ -244,6 +244,7 @@ export default function EntregaDetailPage() {
         <div className="flex gap-2 border-b" style={{ borderColor: "var(--border)" }}>
           <TabButton active={tab === "info"} onClick={() => setTab("info")} icon={FileText}>Informações</TabButton>
           <TabButton active={tab === "historico"} onClick={() => setTab("historico")} icon={History}>Histórico</TabButton>
+          <TabButton active={tab === "avarias"} onClick={() => setTab("avarias")} icon={AlertTriangle}>Avarias</TabButton>
           {isAdmin && (
             <TabButton active={tab === "qualidade"} onClick={() => setTab("qualidade")} icon={ShieldCheck}>Qualidade Operacional</TabButton>
           )}
@@ -411,6 +412,10 @@ export default function EntregaDetailPage() {
                 )}
              </Card>
           </div>
+        )}
+
+        {tab === "avarias" && (
+          <AvariasTab entregaId={id} entrega={entrega} />
         )}
 
         {tab === "qualidade" && isAdmin && (
@@ -708,5 +713,71 @@ function NFDetailCard({ nf }: { nf: any }) {
         </div>
       )}
     </Card>
+  );
+}
+
+const TIPO_LABELS_AV: Record<string, string> = {
+  AVARIA: "Avaria", FALTA: "Falta", INVERSAO: "Inversão", SOBRA: "Sobra",
+  DEVOLUCAO: "Devolução", SEM_PEDIDO: "Sem Pedido",
+};
+const TIPO_COLORS_AV: Record<string, string> = {
+  AVARIA: "#ef4444", FALTA: "#f97316", INVERSAO: "#8b5cf6", SOBRA: "#3b82f6",
+  DEVOLUCAO: "#eab308", SEM_PEDIDO: "#6b7280",
+};
+
+function AvariasTab({ entregaId, entrega }: { entregaId: string; entrega: any }) {
+  const router = useRouter();
+  const [avarias, setAvarias] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/avarias?entregaId=${entregaId}&limit=100`)
+      .then(r => r.json())
+      .then(d => setAvarias(d.avarias || []))
+      .finally(() => setLoading(false));
+  }, [entregaId]);
+
+  if (loading) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-mono uppercase tracking-widest text-slate-400">{avarias.length} avaria(s) registrada(s)</span>
+        <Button size="sm" onClick={() => router.push("/avarias")}>
+          <AlertTriangle size={13} /> Ir para Avarias
+        </Button>
+      </div>
+
+      {avarias.length === 0 ? (
+        <Card>
+          <div className="text-center py-8" style={{ color: "var(--text3)" }}>
+            <CheckCircle2 size={24} className="mx-auto mb-2 opacity-30" />
+            <p className="text-xs">Nenhuma avaria registrada para esta entrega</p>
+          </div>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {avarias.map((a: any) => (
+            <Card key={a.id} className="p-3 cursor-pointer hover:shadow-md transition-all"
+              onClick={() => router.push(`/avarias/${a.id}`)}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-xs font-bold" style={{ color: "var(--accent)" }}>{a.codigo}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${TIPO_COLORS_AV[a.tipo]}15`, color: TIPO_COLORS_AV[a.tipo] }}>
+                    {TIPO_LABELS_AV[a.tipo]}
+                  </span>
+                  <StatusBadge status={a.status} />
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono text-red-500 font-bold">{formatCurrency(a.valorPrejuizo)}</span>
+                  <span className="text-xs font-mono" style={{ color: "var(--text3)" }}>{formatDate(a.dataOcorrencia)}</span>
+                </div>
+              </div>
+              {a.motorista && <div className="text-[10px] mt-1" style={{ color: "var(--text3)" }}>Motorista: {a.motorista.nome}</div>}
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

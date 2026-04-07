@@ -63,6 +63,8 @@ model User {
   sessions      Session[]
   fornecedoresAutorizados FornecedorAutorizado[]
   qualidadeRegistrada QualidadeOperacional[] @relation("AdminQualidade")
+  avariasRegistradas  Avaria[] @relation("AvariaRegistrada")
+  avariasResolvidas   Avaria[] @relation("AvariaResolvida")
 }
 
 model FornecedorAutorizado {
@@ -111,6 +113,7 @@ model Motorista {
   veiculos     Veiculo[]
   entregas     Entrega[]
   rotas        Rota[]
+  avarias      Avaria[]
 }
 
 model Cliente {
@@ -157,6 +160,7 @@ model Rota {
   entregas    Entrega[]
   contasPagar ContaPagar[]
   qualidade   QualidadeOperacional?
+  avarias     Avaria[]
 }
 
 enum StatusEntrega {
@@ -224,6 +228,7 @@ model Entrega {
   ocorrencias      Ocorrencia[]
   contasPagar      ContaPagar[]
   qualidade        QualidadeOperacional?
+  avarias          Avaria[]
 
   @@index([cnpj])
   @@index([status])
@@ -257,7 +262,8 @@ model NotaFiscal {
   entrega           Entrega?  @relation(fields: [entregaId], references: [id], onDelete: Cascade)
   cteId             String?
   cte               CTe?      @relation(fields: [cteId], references: [id])
-  
+  avarias           Avaria[]
+
   @@index([emitenteCnpj])
   @@index([destinatarioCnpj])
   @@index([entregaId])
@@ -391,4 +397,131 @@ model QualidadeOperacional {
   @@index([entregaId])
   @@index([rotaId])
   @@index([adminId])
+}
+
+// ─── Avarias / Devoluções ────────────────────────────────────────────────
+
+enum TipoAvaria {
+  AVARIA
+  FALTA
+  INVERSAO
+  SOBRA
+  DEVOLUCAO
+  SEM_PEDIDO
+}
+
+enum FaseAvaria {
+  CONFERENCIA
+  CARREGAMENTO
+  EM_ROTA
+  ENTREGA
+  DEVOLUCAO
+}
+
+enum StatusAvaria {
+  PENDENTE
+  EM_ANALISE
+  RESOLVIDA
+  DESCARTADA
+}
+
+enum StatusDevolucao {
+  PENDENTE
+  DEVOLVIDO_CLIENTE
+  RETIRADO
+  DESCARTADO
+}
+
+model Avaria {
+  id              String         @id @default(cuid())
+  codigo          String         @unique
+  tipo            TipoAvaria
+  fase            FaseAvaria
+  status          StatusAvaria   @default(PENDENTE)
+
+  entregaId       String?
+  notaFiscalId    String?
+  motoristaId     String?
+  rotaId          String?
+
+  descricao       String         @db.Text
+  observacoes     String?        @db.Text
+  valorPrejuizo   Float          @default(0)
+
+  registradoPorId String
+  dataOcorrencia  DateTime
+  localOcorrencia String?
+
+  resolucao       String?        @db.Text
+  resolvidoPorId  String?
+  dataResolucao   DateTime?
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  entrega         Entrega?       @relation(fields: [entregaId], references: [id])
+  notaFiscal      NotaFiscal?    @relation(fields: [notaFiscalId], references: [id])
+  motorista       Motorista?     @relation(fields: [motoristaId], references: [id])
+  rota            Rota?          @relation(fields: [rotaId], references: [id])
+  registradoPor   User           @relation("AvariaRegistrada", fields: [registradoPorId], references: [id])
+  resolvidoPor    User?          @relation("AvariaResolvida", fields: [resolvidoPorId], references: [id])
+
+  produtos        AvariaProduto[]
+  devolucoes      NotaDevolucao[]
+
+  @@index([entregaId])
+  @@index([notaFiscalId])
+  @@index([motoristaId])
+  @@index([status])
+  @@index([tipo])
+  @@index([dataOcorrencia])
+}
+
+model AvariaProduto {
+  id               String   @id @default(cuid())
+  avariaId         String
+  codigoProduto    String
+  descricao        String
+  ncm              String?
+  unidade          String?
+  quantidadeNF     Float
+  quantidadeAvaria Float
+  valorUnitario    Float    @default(0)
+  valorTotal       Float    @default(0)
+  observacoes      String?  @db.Text
+  createdAt        DateTime @default(now())
+
+  avaria           Avaria   @relation(fields: [avariaId], references: [id], onDelete: Cascade)
+
+  @@index([avariaId])
+}
+
+model NotaDevolucao {
+  id                String          @id @default(cuid())
+  avariaId          String
+  chaveAcesso       String          @unique
+  numero            String
+  serie             String?
+  emitenteCnpj      String
+  emitenteRazao     String
+  destinatarioCnpj  String
+  destinatarioRazao String
+  dataEmissao       DateTime?
+  valorNota         Float           @default(0)
+  xmlOriginal       String?         @db.Text
+
+  status            StatusDevolucao @default(PENDENTE)
+  dataRetorno       DateTime?
+  dataRetirada      DateTime?
+  dataDescarte      DateTime?
+  responsavel       String?
+  observacoes       String?         @db.Text
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  avaria            Avaria          @relation(fields: [avariaId], references: [id], onDelete: Cascade)
+
+  @@index([avariaId])
+  @@index([status])
 }
