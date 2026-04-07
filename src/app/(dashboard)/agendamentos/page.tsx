@@ -10,7 +10,7 @@ import {
 import { formatCurrency, formatDate, formatWeight, formatCNPJ } from "@/lib/utils";
 import { Calendar, Search, Eye, RefreshCw, ChevronLeft, ChevronRight, Clock, List, LayoutGrid } from "lucide-react";
 
-type FiltroData = "TODAS" | "HOJE" | "SEMANA" | "MES";
+type FiltroData = "TODAS" | "HOJE" | "AMANHA" | "SEMANA" | "MES";
 type ViewMode = "lista" | "calendario";
 
 export default function AgendamentosPage() {
@@ -59,6 +59,11 @@ export default function AgendamentosPage() {
     if (filtroData === "HOJE") {
       params.set("dataInicio", new Date(Date.UTC(y, m, d)).toISOString());
       params.set("dataFim", new Date(Date.UTC(y, m, d, 23, 59, 59, 999)).toISOString());
+    } else if (filtroData === "AMANHA") {
+      const amanha = new Date(hoje);
+      amanha.setDate(d + 1);
+      params.set("dataInicio", new Date(Date.UTC(amanha.getFullYear(), amanha.getMonth(), amanha.getDate())).toISOString());
+      params.set("dataFim", new Date(Date.UTC(amanha.getFullYear(), amanha.getMonth(), amanha.getDate(), 23, 59, 59, 999)).toISOString());
     } else if (filtroData === "SEMANA") {
       const seg = new Date(hoje);
       seg.setDate(d - ((hoje.getDay() + 6) % 7));
@@ -190,7 +195,7 @@ export default function AgendamentosPage() {
               </button>
             </div>
 
-            {viewMode === "lista" && (["TODAS", "HOJE", "SEMANA", "MES"] as FiltroData[]).map((f) => (
+            {viewMode === "lista" && (["TODAS", "HOJE", "AMANHA", "SEMANA", "MES"] as FiltroData[]).map((f) => (
               <button
                 key={f}
                 onClick={() => { setFiltroData(f); setPage(1); }}
@@ -202,6 +207,7 @@ export default function AgendamentosPage() {
               >
                 {f === "TODAS" && "Todos"}
                 {f === "HOJE" && "Hoje"}
+                {f === "AMANHA" && "Amanhã"}
                 {f === "SEMANA" && "Esta Semana"}
                 {f === "MES" && "Este Mês"}
               </button>
