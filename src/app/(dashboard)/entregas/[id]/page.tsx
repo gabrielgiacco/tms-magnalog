@@ -143,6 +143,21 @@ export default function EntregaDetailPage() {
     } finally { setSaving(false); }
   }
 
+  async function handleReentrega() {
+    if (!confirm("Gerar uma Reentrega criará uma NOVA entrega com as mesmas NFs e manterá a atual fechada com a rota antiga (para histórico financeiro). Deseja continuar?")) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/entregas/${id}/reentrega`, { method: "POST" });
+      if (!res.ok) throw new Error("Erro ao gerar reentrega");
+      const { novaEntregaId } = await res.json();
+      toast.success("Reentrega gerada com sucesso!");
+      router.push(`/entregas/${novaEntregaId}`);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao gerar");
+      setSaving(false);
+    }
+  }
+
   async function handleSeparar() {
     if (selectedNotas.length === 0) { toast.error("Selecione pelo menos uma nota"); return; }
     if (selectedNotas.length === entrega.notas.length) { toast.error("Selecione apenas parte das notas para separar"); return; }
@@ -219,10 +234,17 @@ export default function EntregaDetailPage() {
             <StatusBadge status={entrega.status} />
           </div>
           {entrega.status === "OCORRENCIA" ? (
-             <div className="flex items-center gap-3 p-3 rounded-xl bg-red-50 border border-red-100">
-               <AlertCircle size={16} className="text-red-500" />
-               <span className="text-sm text-red-600">Esta entrega possui ocorrência registrada. Resolva para continuar o fluxo.</span>
-               <Button size="sm" className="ml-auto" onClick={() => handleStatusChange("EM_ROTA")}>Retomar como Em Rota</Button>
+             <div className="flex items-center gap-3 p-3 rounded-xl bg-red-50 border border-red-100 flex-wrap">
+               <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
+               <span className="text-sm text-red-600 flex-1">Esta entrega possui ocorrência registrada. Escolha uma ação:</span>
+               <div className="flex gap-2">
+                 <Button size="sm" variant="outline" className="border-red-200 text-red-700 bg-white hover:bg-red-50" onClick={handleReentrega} disabled={saving}>
+                   Gerar Reentrega (Duplicar)
+                 </Button>
+                 <Button size="sm" onClick={() => handleStatusChange("EM_ROTA")} disabled={saving}>
+                   Retomar como Em Rota
+                 </Button>
+               </div>
              </div>
           ) : (
             <div className="flex items-center gap-2">

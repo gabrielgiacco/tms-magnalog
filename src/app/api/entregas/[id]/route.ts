@@ -110,11 +110,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (data.status === "ENTREGUE" && !data.dataEntrega) {
     data.dataEntrega = new Date();
   }
-  if (data.status === "OCORRENCIA") {
-    data.rotaId = null;
-    data.motoristaId = null;
-    data.veiculoId = null;
-  }
 
   // Transformar strings vazias (UI blank fields) em nulos para o Prisma
   Object.keys(data).forEach((key) => {
