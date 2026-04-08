@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   Topbar,
@@ -70,6 +70,7 @@ function SortTh({ col, label, sortBy, sortOrder, onSort }: {
 
 export default function EntregasPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -78,6 +79,21 @@ export default function EntregasPage() {
   });
   const [pages, setPages] = useState(1);
 
+  // Build initial filters from URL query params (e.g. /entregas?status=OCORRENCIA)
+  function getFiltersFromURL(): DynamicFilter[] | null {
+    const urlFilters: DynamicFilter[] = [];
+    const supportedParams = ["status", "cidade", "clienteNome", "fornecedor", "uf", "motorista", "volume"];
+    for (const param of supportedParams) {
+      const values = searchParams.getAll(param);
+      for (const val of values) {
+        if (val.trim()) {
+          urlFilters.push({ id: crypto.randomUUID(), field: param, value: val.trim() });
+        }
+      }
+    }
+    return urlFilters.length > 0 ? urlFilters : null;
+  }
+
   // Restore filters from sessionStorage on mount
   function getSaved() {
     try {
@@ -85,15 +101,18 @@ export default function EntregasPage() {
       return raw ? JSON.parse(raw) : null;
     } catch { return null; }
   }
-  const [initialized] = useState(() => getSaved());
+
+  // URL params take priority over saved session state
+  const urlFilters = getFiltersFromURL();
+  const [initialized] = useState(() => urlFilters ? null : getSaved());
 
   // Filters
   const [search, setSearch] = useState(initialized?.search ?? "");
   const [mostrarFinalizados, setMostrarFinalizados] = useState(initialized?.mostrarFinalizados ?? false);
   const [debouncedSearch, setDebouncedSearch] = useState(initialized?.search ?? "");
 
-  const [showFiltros, setShowFiltros] = useState(initialized?.showFiltros ?? false);
-  const [dynamicFilters, setDynamicFilters] = useState<DynamicFilter[]>(initialized?.dynamicFilters ?? []);
+  const [showFiltros, setShowFiltros] = useState(urlFilters ? true : (initialized?.showFiltros ?? false));
+  const [dynamicFilters, setDynamicFilters] = useState<DynamicFilter[]>(urlFilters ?? initialized?.dynamicFilters ?? []);
 
   // Tri-state sort: null → "asc" → "desc" → null
   const [sortBy, setSortBy] = useState<string | null>(initialized?.sortBy ?? null);
