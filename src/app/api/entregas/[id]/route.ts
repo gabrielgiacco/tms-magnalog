@@ -102,6 +102,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const data: any = { ...body };
 
+  // Ao finalizar entrega, marcar canhoto como recebido automaticamente
+  if (data.status === "FINALIZADO") {
+    data.statusCanhoto = "RECEBIDO";
+  }
+
   // Transformar strings vazias (UI blank fields) em nulos para o Prisma
   Object.keys(data).forEach((key) => {
     if (data[key] === "") {

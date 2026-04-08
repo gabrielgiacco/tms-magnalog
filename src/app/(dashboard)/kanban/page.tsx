@@ -21,9 +21,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Topbar } from "@/components/layout/Topbar";
-import { Button, Loading, StatusBadge } from "@/components/ui";
+import { Button, Loading, StatusBadge, Modal } from "@/components/ui";
 import { formatWeight, formatDate, formatCurrency } from "@/lib/utils";
-import { RefreshCw, ExternalLink, GripVertical, User, Package, Search } from "lucide-react";
+import { RefreshCw, ExternalLink, GripVertical, User, Package, Search, ShieldCheck } from "lucide-react";
+import { QualityScoring } from "@/components/quality/QualityScoring";
 
 const COLS = [
   { key: "PROGRAMADO",    label: "Programado",    icon: "📋", color: "#9ca3af" }, // cinza
@@ -151,6 +152,7 @@ export default function KanbanPage() {
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [qualityEntregaId, setQualityEntregaId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const fetchData = useCallback(async () => {
@@ -240,6 +242,9 @@ export default function KanbanPage() {
       });
       if (!res.ok) throw new Error();
       toast.success(`Movido para ${COLS.find((c) => c.key === targetColKey)?.label}`);
+      if (targetColKey === "FINALIZADO" && !entrega.isRota) {
+        setQualityEntregaId(active.id as string);
+      }
     } catch {
       toast.error("Erro ao atualizar status");
       setEntregas((prev) => prev.map((e) => e.id === active.id ? { ...e, status: entrega.status } : e));
@@ -309,6 +314,19 @@ export default function KanbanPage() {
           </DragOverlay>
         </DndContext>
       </div>
+
+      {/* Quality Prompt Modal */}
+      <Modal open={!!qualityEntregaId} onClose={() => setQualityEntregaId(null)} title="Avaliação de Qualidade Operacional" size="lg">
+        <div className="mb-4 p-3 rounded-xl flex items-center gap-3" style={{ background: "rgba(249,115,22,.08)", border: "1px solid rgba(249,115,22,.2)" }}>
+          <ShieldCheck size={20} className="text-orange-500 flex-shrink-0" />
+          <p className="text-sm" style={{ color: "var(--text2)" }}>
+            Entrega finalizada! Registre a avaliação de qualidade operacional antes de continuar.
+          </p>
+        </div>
+        {qualityEntregaId && (
+          <QualityScoring entregaId={qualityEntregaId} onSave={() => { setQualityEntregaId(null); toast.success("Avaliação salva!"); }} />
+        )}
+      </Modal>
     </>
   );
 }

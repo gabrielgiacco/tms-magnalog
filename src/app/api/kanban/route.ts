@@ -49,6 +49,7 @@ export async function PATCH(req: NextRequest) {
 
   const data: any = { status };
   if (status === "ENTREGUE") data.dataEntrega = new Date();
+  if (status === "FINALIZADO") data.statusCanhoto = "RECEBIDO";
 
   if (id.startsWith("rota_")) {
     const rotaId = id.replace("rota_", "");
