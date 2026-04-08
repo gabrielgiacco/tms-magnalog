@@ -14,29 +14,41 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
     const skip = (page - 1) * limit;
-    const status = searchParams.get("status");
     const cliente = searchParams.get("cliente");
-    const cidade = searchParams.get("cidade");
     const rotaId = searchParams.get("rotaId");
     const mostrarFinalizados = searchParams.get("mostrarFinalizados") === "true";
     const dataInicio = searchParams.get("dataInicio");
     const dataFim = searchParams.get("dataFim");
     const apenasAgendadas = searchParams.get("apenasAgendadas") === "true";
-    const clienteNome = searchParams.get("clienteNome");
-    const fornecedor = searchParams.get("fornecedor");
-    const volume = searchParams.get("volume");
-    const uf = searchParams.get("uf");
-    const motoristaNome = searchParams.get("motorista");
     const sortBy = searchParams.get("sortBy");
     const sortOrder = searchParams.get("sortOrder") as "asc" | "desc" | null;
 
+    // Multi-value dynamic filters — getAll() captures all values for the same param
+    const cidades = searchParams.getAll("cidade").filter(Boolean);
+    const statusList = searchParams.getAll("status").filter(Boolean);
+    const clienteNomes = searchParams.getAll("clienteNome").filter(Boolean);
+    const fornecedores = searchParams.getAll("fornecedor").filter(Boolean);
+    const volumes = searchParams.getAll("volume").filter(Boolean);
+    const ufs = searchParams.getAll("uf").filter(Boolean);
+    const motoristas = searchParams.getAll("motorista").filter(Boolean);
+
     const where: any = {};
+    // AND array to combine multiple filter groups
+    const andConditions: any[] = [];
 
     // Ocultar finalizados por padrão
     if (!mostrarFinalizados) {
       where.status = { notIn: ["FINALIZADO"] };
     }
-    if (status) where.status = status;
+
+    // Status filter: multiple values → OR (show any matching status)
+    if (statusList.length === 1) {
+      where.status = statusList[0];
+    } else if (statusList.length > 1) {
+      where.status = { in: statusList };
+    }
+
+    // Global search bar (searches across many fields)
     if (cliente) {
       const orConditions: any[] = [
         { razaoSocial: { contains: cliente, mode: "insensitive" } },
@@ -49,42 +61,81 @@ export async function GET(req: NextRequest) {
       ];
       const digits = cliente.replace(/\D/g, "");
       if (digits.length > 0) orConditions.push({ cnpj: { contains: digits } });
-      where.OR = orConditions;
+      andConditions.push({ OR: orConditions });
     }
-    if (clienteNome) {
-      where.razaoSocial = { contains: clienteNome, mode: "insensitive" };
+
+    // Cidade filter: multiple values → OR (show entries in ANY of the cities)
+    if (cidades.length === 1) {
+      andConditions.push({ cidade: { contains: cidades[0], mode: "insensitive" } });
+    } else if (cidades.length > 1) {
+      andConditions.push({
+        OR: cidades.map((c) => ({ cidade: { contains: c, mode: "insensitive" } })),
+      });
     }
-    if (cidade) where.cidade = { contains: cidade, mode: "insensitive" };
+
+    // Cliente/Razão Social filter: multiple values → OR
+    if (clienteNomes.length === 1) {
+      andConditions.push({ razaoSocial: { contains: clienteNomes[0], mode: "insensitive" } });
+    } else if (clienteNomes.length > 1) {
+      andConditions.push({
+        OR: clienteNomes.map((n) => ({ razaoSocial: { contains: n, mode: "insensitive" } })),
+      });
+    }
+
+    // Fornecedor filter: multiple values → OR
+    if (fornecedores.length === 1) {
+      andConditions.push({ notas: { some: { emitenteRazao: { contains: fornecedores[0], mode: "insensitive" } } } });
+    } else if (fornecedores.length > 1) {
+      andConditions.push({
+        OR: fornecedores.map((f) => ({ notas: { some: { emitenteRazao: { contains: f, mode: "insensitive" } } } })),
+      });
+    }
+
+    // Volume filter: multiple values → OR
+    if (volumes.length === 1) {
+      andConditions.push({ volumeTotal: parseInt(volumes[0]) });
+    } else if (volumes.length > 1) {
+      andConditions.push({
+        OR: volumes.map((v) => ({ volumeTotal: parseInt(v) })),
+      });
+    }
+
+    // UF filter: multiple values → OR
+    if (ufs.length === 1) {
+      andConditions.push({ uf: { equals: ufs[0], mode: "insensitive" } });
+    } else if (ufs.length > 1) {
+      andConditions.push({
+        OR: ufs.map((u) => ({ uf: { equals: u, mode: "insensitive" } })),
+      });
+    }
+
+    // Motorista filter: multiple values → OR
+    if (motoristas.length === 1) {
+      andConditions.push({ motorista: { nome: { contains: motoristas[0], mode: "insensitive" } } });
+    } else if (motoristas.length > 1) {
+      andConditions.push({
+        OR: motoristas.map((m) => ({ motorista: { nome: { contains: m, mode: "insensitive" } } })),
+      });
+    }
+
     if (rotaId) where.rotaId = rotaId;
     
     if (apenasAgendadas) {
       where.dataAgendada = { not: null };
     }
 
-    if (fornecedor) {
-      where.notas = { some: { emitenteRazao: { contains: fornecedor, mode: "insensitive" } } };
-    }
-    
-    if (volume) {
-      where.volumeTotal = parseInt(volume);
-    }
-
-    if (uf) {
-      where.uf = { equals: uf, mode: "insensitive" };
-    }
-
-    if (motoristaNome) {
-      where.motorista = { nome: { contains: motoristaNome, mode: "insensitive" } };
-    }
-
     if (dataInicio || dataFim) {
-      // Se a busca é por agendadas, filtrar pela dataAgendada; senão, pela createdAt
       const dateField = apenasAgendadas ? "dataAgendada" : "createdAt";
       where[dateField] = { ...(where[dateField] || {}) };
       if (dataInicio) where[dateField].gte = new Date(dataInicio);
       if (dataFim) {
         where[dateField].lte = new Date(dataFim);
       }
+    }
+
+    // Combine all dynamic filter conditions with AND
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     // Ordenação dinâmica: suporta colunas diretas e relações (motorista.nome)
