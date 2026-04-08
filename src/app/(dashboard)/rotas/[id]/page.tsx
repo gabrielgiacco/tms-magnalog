@@ -35,6 +35,7 @@ export default function RotaDetailPage() {
   const [motoristas, setMotoristas] = useState<any[]>([]);
   const [veiculos, setVeiculos] = useState<any[]>([]);
   const [tab, setTab] = useState("info");
+  const [showQualityPrompt, setShowQualityPrompt] = useState(false);
 
   const fetchRota = useCallback(async () => {
     setLoading(true);
@@ -67,6 +68,9 @@ export default function RotaDetailPage() {
       });
       toast.success("Status atualizado");
       fetchRota();
+      if (newStatus === "CONCLUIDA") {
+        setShowQualityPrompt(true);
+      }
     } finally { setSaving(false); }
   }
 
@@ -317,6 +321,17 @@ export default function RotaDetailPage() {
           </Card>
         )}
       </div>
+
+      {/* Quality Prompt Modal */}
+      <Modal open={showQualityPrompt} onClose={() => setShowQualityPrompt(false)} title="Avaliação de Qualidade Operacional" size="lg">
+        <div className="mb-4 p-3 rounded-xl flex items-center gap-3" style={{ background: "rgba(249,115,22,.08)", border: "1px solid rgba(249,115,22,.2)" }}>
+          <ShieldCheck size={20} className="text-orange-500 flex-shrink-0" />
+          <p className="text-sm" style={{ color: "var(--text2)" }}>
+            Rota concluída! Registre a avaliação de qualidade operacional antes de continuar.
+          </p>
+        </div>
+        <QualityScoring rotaId={id} onSave={() => { setShowQualityPrompt(false); toast.success("Avaliação salva!"); }} />
+      </Modal>
 
       {/* Modal Add Entregas remains largely the same but simplified UI */}
       <Modal open={showAddEntrega} onClose={() => setShowAddEntrega(false)} title="Adicionar Entregas" size="xl">

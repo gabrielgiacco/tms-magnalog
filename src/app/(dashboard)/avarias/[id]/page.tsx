@@ -7,8 +7,9 @@ import { Button, Card, Loading, StatusBadge, Modal, Select, Textarea } from "@/c
 import { formatCurrency, formatDate, formatCNPJ } from "@/lib/utils";
 import {
   ChevronLeft, AlertTriangle, Package, MapPin, User, Truck, FileText,
-  CheckCircle2, Clock, XCircle, Upload, Eye,
+  CheckCircle2, Clock, XCircle, Upload, Eye, ChevronDown, ChevronUp, Box, Info, Weight, LogOut, Square, CheckSquare,
 } from "lucide-react";
+import { formatWeight } from "@/lib/utils";
 import toast from "react-hot-toast";
 
 const TIPO_LABELS: Record<string, string> = {
@@ -53,6 +54,9 @@ export default function AvariaDetailPage() {
   const [devForm, setDevForm] = useState({ status: "DEVOLVIDO_CLIENTE", responsavel: "", observacoes: "" });
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [selectedDevs, setSelectedDevs] = useState<string[]>([]);
+  const [showSaida, setShowSaida] = useState(false);
+  const [saidaForm, setSaidaForm] = useState({ motorista: "", placa: "", transportadora: "", observacoes: "" });
 
   useEffect(() => {
     fetch(`/api/avarias/${id}`).then(r => r.json()).then(d => {
@@ -107,6 +111,43 @@ export default function AvariaDetailPage() {
       setAvaria(updated);
       setShowDevStatus(null);
     } catch { toast.error("Erro ao atualizar"); }
+    finally { setSaving(false); }
+  }
+
+  function toggleDev(devId: string) {
+    setSelectedDevs(prev => prev.includes(devId) ? prev.filter(x => x !== devId) : [...prev, devId]);
+  }
+
+  function toggleAllDevs() {
+    const pendentes = (avaria?.devolucoes || []).filter((d: any) => d.status === "PENDENTE").map((d: any) => d.id);
+    const allSelected = pendentes.every((id: string) => selectedDevs.includes(id));
+    setSelectedDevs(allSelected ? [] : pendentes);
+  }
+
+  async function handleDarSaida() {
+    if (selectedDevs.length === 0) { toast.error("Selecione ao menos uma NF"); return; }
+    setSaving(true);
+    try {
+      const obs = [
+        saidaForm.transportadora && `Transportadora: ${saidaForm.transportadora}`,
+        saidaForm.motorista && `Motorista: ${saidaForm.motorista}`,
+        saidaForm.placa && `Placa: ${saidaForm.placa}`,
+        saidaForm.observacoes,
+      ].filter(Boolean).join(" | ");
+
+      for (const devId of selectedDevs) {
+        await fetch(`/api/avarias/${id}/devolucao`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ devolucaoId: devId, status: "RETIRADO", responsavel: saidaForm.motorista || saidaForm.transportadora, observacoes: obs }),
+        });
+      }
+      toast.success(`${selectedDevs.length} NF(s) marcada(s) como retirada(s)`);
+      setShowSaida(false);
+      setSelectedDevs([]);
+      setSaidaForm({ motorista: "", placa: "", transportadora: "", observacoes: "" });
+      const updated = await fetch(`/api/avarias/${id}`).then(r => r.json());
+      setAvaria(updated);
+    } catch { toast.error("Erro ao dar saída"); }
     finally { setSaving(false); }
   }
 
@@ -296,13 +337,18 @@ export default function AvariaDetailPage() {
         )}
 
         {/* NFs de Devolução */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
+        <Card className="p-0 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
             <div className="flex items-center gap-2">
               <FileText size={14} className="text-amber-500" />
               <span className="text-xs font-mono uppercase tracking-widest text-slate-400">NFs de Devolução ({avaria.devolucoes?.length || 0})</span>
             </div>
-            <div>
+            <div className="flex items-center gap-2">
+              {selectedDevs.length > 0 && (
+                <Button size="sm" onClick={() => { setShowSaida(true); setSaidaForm({ motorista: "", placa: "", transportadora: "", observacoes: "" }); }}>
+                  <LogOut size={13} /> Dar Saída ({selectedDevs.length})
+                </Button>
+              )}
               <input ref={fileRef} type="file" accept=".xml" multiple className="hidden" onChange={handleUploadDevolucao} />
               <Button size="sm" variant="ghost" onClick={() => fileRef.current?.click()} loading={uploading}>
                 <Upload size={13} /> Importar XML
@@ -311,42 +357,93 @@ export default function AvariaDetailPage() {
           </div>
 
           {avaria.devolucoes?.length === 0 ? (
-            <div className="text-center py-6" style={{ color: "var(--text3)" }}>
+            <div className="text-center py-8 px-4" style={{ color: "var(--text3)" }}>
               <FileText size={24} className="mx-auto mb-2 opacity-30" />
               <p className="text-xs">Nenhuma NF de devolução anexada</p>
               <p className="text-[10px] mt-1">Importe XMLs de notas de devolução recebidas dos parceiros</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {avaria.devolucoes.map((d: any) => (
-                <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg" style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
-                  <FileText size={16} className="text-amber-500 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold font-mono" style={{ color: "#3b82f6" }}>NF {d.numero}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{
-                        background: d.status === "PENDENTE" ? "rgba(249,115,22,.1)" : d.status === "DESCARTADO" ? "rgba(107,114,128,.1)" : "rgba(16,185,129,.1)",
-                        color: d.status === "PENDENTE" ? "#f97316" : d.status === "DESCARTADO" ? "#6b7280" : "#10b981",
-                      }}>
-                        {STATUS_DEV_LABELS[d.status]}
-                      </span>
-                    </div>
-                    <div className="text-[10px] mt-0.5" style={{ color: "var(--text3)" }}>
-                      {d.emitenteRazao} · {formatCurrency(d.valorNota)} · {formatDate(d.dataEmissao)}
-                    </div>
-                    {d.responsavel && <div className="text-[10px] mt-0.5 text-slate-400">Resp: {d.responsavel}</div>}
-                  </div>
-                  {d.status === "PENDENTE" && (
-                    <Button size="sm" variant="ghost" onClick={() => { setShowDevStatus(d); setDevForm({ status: "DEVOLVIDO_CLIENTE", responsavel: "", observacoes: "" }); }}>
-                      Atualizar
-                    </Button>
-                  )}
+            <div>
+              {/* Select all bar */}
+              {avaria.devolucoes.some((d: any) => d.status === "PENDENTE") && (
+                <div className="flex items-center gap-3 px-4 py-2" style={{ background: "var(--surface2)", borderBottom: "1px solid var(--border)" }}>
+                  <button onClick={toggleAllDevs} className="flex items-center gap-2 text-xs font-medium" style={{ color: "var(--text2)" }}>
+                    {avaria.devolucoes.filter((d: any) => d.status === "PENDENTE").every((d: any) => selectedDevs.includes(d.id))
+                      ? <CheckSquare size={16} className="text-orange-500" />
+                      : <Square size={16} className="text-slate-400" />
+                    }
+                    Selecionar todas pendentes
+                  </button>
                 </div>
-              ))}
+              )}
+              <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+                {avaria.devolucoes.map((d: any) => (
+                  <NFDevCard key={d.id} dev={d} selected={selectedDevs.includes(d.id)} onToggle={() => toggleDev(d.id)}
+                    onUpdateStatus={() => { setShowDevStatus(d); setDevForm({ status: "DEVOLVIDO_CLIENTE", responsavel: "", observacoes: "" }); }} />
+                ))}
+              </div>
             </div>
           )}
         </Card>
       </div>
+
+      {/* Saída Modal */}
+      <Modal open={showSaida} onClose={() => setShowSaida(false)} title={`Dar Saída — ${selectedDevs.length} NF(s)`} size="md">
+        <div className="space-y-4">
+          <div className="p-3 rounded-xl flex items-center gap-3" style={{ background: "rgba(249,115,22,.08)", border: "1px solid rgba(249,115,22,.2)" }}>
+            <LogOut size={18} className="text-orange-500 flex-shrink-0" />
+            <p className="text-sm" style={{ color: "var(--text2)" }}>
+              Registre os dados de quem retirou a mercadoria para controle interno.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Transportadora</label>
+              <input value={saidaForm.transportadora} onChange={e => setSaidaForm(f => ({ ...f, transportadora: e.target.value }))}
+                placeholder="Nome da transportadora..." className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Motorista</label>
+              <input value={saidaForm.motorista} onChange={e => setSaidaForm(f => ({ ...f, motorista: e.target.value }))}
+                placeholder="Nome do motorista..." className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Placa do Veículo</label>
+              <input value={saidaForm.placa} onChange={e => setSaidaForm(f => ({ ...f, placa: e.target.value.toUpperCase() }))}
+                placeholder="ABC-1234" className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono"
+                style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Observações</label>
+            <textarea value={saidaForm.observacoes} onChange={e => setSaidaForm(f => ({ ...f, observacoes: e.target.value }))}
+              placeholder="Informações adicionais sobre a retirada..." rows={3}
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
+              style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} />
+          </div>
+
+          {/* Selected NFs preview */}
+          <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+            <div className="px-3 py-2 text-[10px] font-mono uppercase font-bold" style={{ background: "var(--surface2)", color: "var(--text3)" }}>
+              NFs selecionadas para saída
+            </div>
+            <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+              {avaria?.devolucoes?.filter((d: any) => selectedDevs.includes(d.id)).map((d: any) => (
+                <div key={d.id} className="px-3 py-2 flex items-center justify-between text-xs">
+                  <span className="font-mono font-bold" style={{ color: "#3b82f6" }}>NF {d.numero}</span>
+                  <span className="font-mono" style={{ color: "#10b981" }}>{formatCurrency(d.valorNota)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+          <Button variant="ghost" onClick={() => setShowSaida(false)}>Cancelar</Button>
+          <Button onClick={handleDarSaida} loading={saving}>Confirmar Saída</Button>
+        </div>
+      </Modal>
 
       {/* Resolve Modal */}
       <Modal open={showResolve} onClose={() => setShowResolve(false)} title="Resolver / Atualizar Avaria" size="sm">
@@ -398,6 +495,174 @@ function Field({ label, value, mono, color }: { label: string; value?: string | 
       <div className={`text-sm font-medium ${mono ? "font-mono text-xs" : ""}`} style={{ color: value ? (color || "var(--text)") : "var(--text3)" }}>
         {value || "—"}
       </div>
+    </div>
+  );
+}
+
+function NFDevCard({ dev, selected, onToggle, onUpdateStatus }: { dev: any; selected: boolean; onToggle: () => void; onUpdateStatus: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasProdutos = dev.produtos && dev.produtos.length > 0;
+  const hasInfoAdicional = dev.infAdicionais && dev.infAdicionais.trim();
+  const hasEmitente = dev.emitente && dev.emitente.razaoSocial;
+  const isPendente = dev.status === "PENDENTE";
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50/50 transition-colors" onClick={() => setExpanded(!expanded)}>
+        {/* Checkbox */}
+        {isPendente && (
+          <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className="flex-shrink-0">
+            {selected ? <CheckSquare size={18} className="text-orange-500" /> : <Square size={18} className="text-slate-400" />}
+          </button>
+        )}
+        {!isPendente && <div className="w-[18px]" />}
+
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(245,158,11,.08)", border: "1px solid rgba(245,158,11,.15)" }}>
+          <FileText size={16} className="text-amber-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-sm font-bold" style={{ color: "#3b82f6" }}>NF {dev.numero}</span>
+            {dev.serie && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--surface2)", color: "var(--text3)" }}>Série {dev.serie}</span>}
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{
+              background: dev.status === "PENDENTE" ? "rgba(249,115,22,.1)" : dev.status === "DESCARTADO" ? "rgba(107,114,128,.1)" : "rgba(16,185,129,.1)",
+              color: dev.status === "PENDENTE" ? "#f97316" : dev.status === "DESCARTADO" ? "#6b7280" : "#10b981",
+            }}>{STATUS_DEV_LABELS[dev.status]}</span>
+          </div>
+          <div className="text-xs truncate" style={{ color: "var(--text2)" }}>{dev.emitenteRazao}</div>
+        </div>
+
+        <div className="hidden md:flex items-center gap-6 flex-shrink-0">
+          <div className="text-center"><div className="text-[9px] font-mono uppercase text-slate-400">Volumes</div><div className="text-sm font-bold font-mono">{dev.volumes || 0}</div></div>
+          <div className="text-center"><div className="text-[9px] font-mono uppercase text-slate-400">Peso</div><div className="text-sm font-bold font-mono">{formatWeight(dev.pesoBruto)}</div></div>
+          <div className="text-center"><div className="text-[9px] font-mono uppercase text-slate-400">Valor NF</div><div className="text-sm font-bold font-mono" style={{ color: "#10b981" }}>{formatCurrency(dev.valorNota)}</div></div>
+          <div className="text-center"><div className="text-[9px] font-mono uppercase text-slate-400">Itens</div><div className="text-sm font-bold font-mono">{dev.produtos?.length || 0}</div></div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isPendente && (
+            <button onClick={(e) => { e.stopPropagation(); onUpdateStatus(); }}
+              className="text-[10px] font-bold px-2 py-1 rounded-lg" style={{ background: "var(--surface2)", color: "var(--text2)" }}>
+              Status
+            </button>
+          )}
+          {expanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+        </div>
+      </div>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="px-4 pb-4" style={{ borderTop: "1px solid var(--border)" }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+            {/* Left: Fornecedor + NF data */}
+            <div className="space-y-4">
+              {hasEmitente && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <User size={13} className="text-slate-400" />
+                    <span className="text-[10px] font-mono uppercase tracking-widest font-bold text-slate-400">Fornecedor / Emitente</span>
+                  </div>
+                  <div className="space-y-2">
+                    <Field label="Razão Social" value={dev.emitente.razaoSocial} />
+                    {dev.emitente.fantasia && dev.emitente.fantasia !== "undefined" && <Field label="Nome Fantasia" value={dev.emitente.fantasia} />}
+                    <Field label="CNPJ" value={formatCNPJ(dev.emitente.cnpj)} mono />
+                    {dev.emitente.ie && dev.emitente.ie !== "undefined" && <Field label="Inscrição Estadual" value={dev.emitente.ie} mono />}
+                    <Field label="Cidade / UF" value={`${dev.emitente.cidade}${dev.emitente.uf ? ` — ${dev.emitente.uf}` : ""}`} />
+                    {dev.emitente.endereco && dev.emitente.endereco.trim() && <Field label="Endereço" value={`${dev.emitente.endereco}${dev.emitente.bairro ? `, ${dev.emitente.bairro}` : ""}`} />}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText size={13} className="text-slate-400" />
+                  <span className="text-[10px] font-mono uppercase tracking-widest font-bold text-slate-400">Dados da Nota Fiscal</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Número" value={dev.numero} mono />
+                  <Field label="Série" value={dev.serie} mono />
+                  <Field label="Data Emissão" value={formatDate(dev.dataEmissao)} mono />
+                  <div className="col-span-2"><Field label="Chave de Acesso" value={dev.chaveAcesso} mono color="#3b82f6" /></div>
+                  <Field label="Volumes" value={String(dev.volumes || 0)} mono />
+                  <Field label="Peso Bruto" value={formatWeight(dev.pesoBruto)} mono />
+                  <Field label="Valor Total NF" value={formatCurrency(dev.valorNota)} color="#10b981" />
+                </div>
+              </div>
+
+              {dev.responsavel && (
+                <div className="p-3 rounded-lg" style={{ background: "rgba(16,185,129,.05)", border: "1px solid rgba(16,185,129,.15)" }}>
+                  <div className="text-[9px] font-mono uppercase tracking-widest text-emerald-500 mb-1">Dados da Retirada</div>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--text)" }}>{dev.responsavel}</p>
+                  {dev.observacoes && <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--text2)" }}>{dev.observacoes}</p>}
+                </div>
+              )}
+            </div>
+
+            {/* Right: Products */}
+            <div>
+              {hasProdutos && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Box size={13} className="text-slate-400" />
+                    <span className="text-[10px] font-mono uppercase tracking-widest font-bold text-slate-400">Produtos / Serviços ({dev.produtos.length})</span>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "var(--border)" }}>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr style={{ background: "var(--surface2)" }}>
+                          <th className="text-left px-2 py-1.5 text-[9px] font-bold uppercase text-slate-400">#</th>
+                          <th className="text-left px-2 py-1.5 text-[9px] font-bold uppercase text-slate-400">Descrição</th>
+                          <th className="text-right px-2 py-1.5 text-[9px] font-bold uppercase text-slate-400">NCM</th>
+                          <th className="text-right px-2 py-1.5 text-[9px] font-bold uppercase text-slate-400">Qtd</th>
+                          <th className="text-center px-2 py-1.5 text-[9px] font-bold uppercase text-slate-400">Un</th>
+                          <th className="text-right px-2 py-1.5 text-[9px] font-bold uppercase text-slate-400">Valor Un.</th>
+                          <th className="text-right px-2 py-1.5 text-[9px] font-bold uppercase text-slate-400">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dev.produtos.map((p: any, i: number) => (
+                          <tr key={i} style={{ borderTop: "1px solid var(--border)" }}>
+                            <td className="px-2 py-1.5 font-mono text-slate-400">{i + 1}</td>
+                            <td className="px-2 py-1.5">
+                              <div className="font-medium">{p.descricao}</div>
+                              <div className="text-[9px] font-mono text-slate-400">Cód: {p.codigoProduto}</div>
+                            </td>
+                            <td className="px-2 py-1.5 text-right font-mono text-slate-500">{p.ncm}</td>
+                            <td className="px-2 py-1.5 text-right font-mono">{p.quantidade}</td>
+                            <td className="px-2 py-1.5 text-center">{p.unidade}</td>
+                            <td className="px-2 py-1.5 text-right font-mono text-slate-500">{formatCurrency(p.valorUnitario)}</td>
+                            <td className="px-2 py-1.5 text-right font-mono font-bold" style={{ color: "#10b981" }}>{formatCurrency(p.valorTotal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: "2px solid var(--border)", background: "var(--surface2)" }}>
+                          <td colSpan={6} className="px-2 py-2 text-right text-[10px] font-bold uppercase text-slate-500">Total Produtos</td>
+                          <td className="px-2 py-2 text-right font-mono font-bold" style={{ color: "#10b981" }}>
+                            {formatCurrency(dev.produtos.reduce((s: number, p: any) => s + (p.valorTotal || 0), 0))}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Dados Adicionais */}
+          {hasInfoAdicional && (
+            <div className="mt-4 p-3 rounded-lg" style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center gap-2 mb-2">
+                <Info size={13} className="text-slate-400" />
+                <span className="text-[10px] font-mono uppercase tracking-widest font-bold text-slate-400">Dados Adicionais</span>
+              </div>
+              <p className="text-[11px] leading-relaxed whitespace-pre-wrap" style={{ color: "var(--text2)" }}>{dev.infAdicionais}</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

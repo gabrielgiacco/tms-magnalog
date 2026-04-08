@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
     const clienteNome = searchParams.get("clienteNome");
     const fornecedor = searchParams.get("fornecedor");
     const volume = searchParams.get("volume");
+    const uf = searchParams.get("uf");
+    const motoristaNome = searchParams.get("motorista");
     const sortBy = searchParams.get("sortBy");
     const sortOrder = searchParams.get("sortOrder") as "asc" | "desc" | null;
 
@@ -65,6 +67,14 @@ export async function GET(req: NextRequest) {
     
     if (volume) {
       where.volumeTotal = parseInt(volume);
+    }
+
+    if (uf) {
+      where.uf = { equals: uf, mode: "insensitive" };
+    }
+
+    if (motoristaNome) {
+      where.motorista = { nome: { contains: motoristaNome, mode: "insensitive" } };
     }
 
     if (dataInicio || dataFim) {

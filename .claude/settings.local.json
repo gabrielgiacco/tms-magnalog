@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/api/entregas -b /tmp/cookies2.txt)",
+      "Bash(SESSION=\"eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..joGx7KjF3JPdbMtf.YzzkrCvgenRXiSSWrbJYcSjeAPgFjjkIm_SpptvOzQKyqZS0yPH9cMNRsHRI7GdSByVrSEE8bXmOQlPSfiNOALb_pWeMjoVTbLV9jCx8A9sI0vFG1cQgDHO9HFRZ6FbH6kTokZ2T_EcJXL4aEUgkaIt6CxsxiHOdxKeBLSjaISk3NNKiUAREoDs6JHw4ucvmVDLQuR_UxZ9SH_PZrKsZ3WLz4knCzOgZav7nC-520Rx2JCU9ZbIyY2GJrlbODnaxhxUd9G6qEN2NpMBKzTPuWilOJQ7AC-o08EbGUCGGzlZIjMX_GSsu1CH2zOEb.QMti-WaspqrfJs5bXYfjnw\")",
+      "Bash(__NEW_LINE_27a27fe4e2490d73__ node -e \":*)",
+      "Bash(node -e \":*)",
+      "Bash(__NEW_LINE_bce08bcb0baf2922__ echo:*)",
+      "Bash(node -e \"const http=require\\(''http''\\);http.get\\(''http://localhost:3000/api/entregas?page=1&limit=50&mostrarFinalizados=false'',{headers:{Cookie:''next-auth.session-token=$SESSION''}},r=>{let d='''';r.on\\(''data'',c=>d+=c\\);r.on\\(''end'',\\(\\)=>{const o=JSON.parse\\(d\\);console.log\\(''Total:'',o.total\\)}\\)}\\).end\\(\\);\")",
+      "Bash(__NEW_LINE_bce08bcb0baf2922__ sleep:*)",
+      "Bash(node -e \"const http=require\\(''http''\\);http.get\\(''http://localhost:3000/api/entregas?page=1&limit=50&mostrarFinalizados=false&clienteNome=ATACADAO'',{headers:{Cookie:''next-auth.session-token=$SESSION''}},r=>{let d='''';r.on\\(''data'',c=>d+=c\\);r.on\\(''end'',\\(\\)=>{const o=JSON.parse\\(d\\);console.log\\(''Total:'',o.total\\);\\(o.entregas||[]\\).forEach\\(e=>console.log\\('' -'',e.razaoSocial,e.codigo\\)\\)}\\)}\\).end\\(\\);\")",
+      "Bash(git fetch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npx vercel:*)",
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "Bash(gh api:*)",
+      "Bash(npm list:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:meudanfe.com.br)",
+      "WebFetch(domain:web.meudanfe.com.br)",
+      "WebFetch(domain:consultadanfe.com)",
+      "WebFetch(domain:danfe.br.com)",
+      "Bash(curl -s -X GET \"https://ws.meudanfe.com.br/v2/fd/init\" -H \"apikey: cbb7a07f-af65-42e7-9f28-2c0b34e951cd\" -H \"cache: no-store\")"
+    ]
+  }
+}

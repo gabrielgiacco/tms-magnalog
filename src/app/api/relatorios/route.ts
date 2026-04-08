@@ -119,40 +119,59 @@ export async function GET(req: NextRequest) {
       include: {
         entregas: {
           where: { dataAgendada: { gte: inicio, lte: fim } },
-          select: { status: true, valorFrete: true, pesoTotal: true, rotaId: true, valorMotorista: true },
+          select: { status: true, valorFrete: true, pesoTotal: true, rotaId: true, valorMotorista: true, adiantamentoMotorista: true, saldoMotorista: true },
         },
         rotas: {
           where: { data: { gte: inicio, lte: fim } },
-          select: { valorMotorista: true, pesoTotal: true, status: true } as any
-        }
+          include: {
+            entregas: {
+              select: { valorFrete: true, status: true },
+            },
+          },
+        },
       },
     });
 
     const ranking = motoristas
       .map((m: any) => {
-        const directEntregas = m.entregas.filter((e: any) => !e.rotaId);
         const totalEntregas = m.entregas.length;
         const entregues = m.entregas.filter((e: any) => ["ENTREGUE", "FINALIZADO"].includes(e.status)).length;
-        
-        // Frete ganho pelo motorista: valorMotorista das Entregas Diretas + valorMotorista das Rotas
-        // Nota: Entrega.valorMotorista (da minha adição anterior)
-        // Rota.valorMotorista (da minha adição anterior)
-        
-        // Precisamos buscar o valorMotorista das entregas diretas. Como o 'findMany' acima não pegou, 
-        // vamos simplificar considerando a soma das rotas e das entregas individuais que o motorista fez.
-        
-        const freteMotorista = 
-          m.rotas.reduce((s: number, r: any) => s + (r.valorMotorista || 0), 0) +
-          m.entregas.filter((e: any) => !e.rotaId).reduce((s: number, e: any) => s + (e.valorMotorista || 0), 0);
+
+        // Receita de frete: soma dos valorFrete das entregas diretas + entregas dentro das rotas
+        const freteEntregasDiretas = m.entregas.filter((e: any) => !e.rotaId).reduce((s: number, e: any) => s + (e.valorFrete || 0), 0);
+        const freteRotas = m.rotas.reduce((s: number, r: any) => s + (r.entregas || []).reduce((rs: number, re: any) => rs + (re.valorFrete || 0), 0), 0);
+        const frete = freteEntregasDiretas + freteRotas;
+
+        // Valor pago ao motorista: valorMotorista das entregas diretas + valorMotorista das rotas
+        const valorMotorista =
+          m.entregas.filter((e: any) => !e.rotaId).reduce((s: number, e: any) => s + (e.valorMotorista || 0), 0) +
+          m.rotas.reduce((s: number, r: any) => s + (r.valorMotorista || 0), 0);
+
+        // Adiantamentos e saldos
+        const adiantamento =
+          m.entregas.filter((e: any) => !e.rotaId).reduce((s: number, e: any) => s + (e.adiantamentoMotorista || 0), 0) +
+          m.rotas.reduce((s: number, r: any) => s + (r.adiantamentoMotorista || 0), 0);
+
+        const saldo =
+          m.entregas.filter((e: any) => !e.rotaId).reduce((s: number, e: any) => s + (e.saldoMotorista || 0), 0) +
+          m.rotas.reduce((s: number, r: any) => s + (r.saldoMotorista || 0), 0);
+
+        // Peso: entregas diretas + rotas (pesoTotal da rota)
+        const peso =
+          m.entregas.filter((e: any) => !e.rotaId).reduce((s: number, e: any) => s + (e.pesoTotal || 0), 0) +
+          m.rotas.reduce((s: number, r: any) => s + (r.pesoTotal || 0), 0);
 
         return {
           id: m.id,
           nome: m.nome,
           totalEntregas,
+          rotas: m.rotas.length,
           entregues,
-          frete: m.entregas.reduce((s: number, e: any) => s + e.valorFrete, 0), // Receita gerada
-          freteMotorista, // O que o motorista de fato ganhou
-          peso: m.entregas.reduce((s: number, e: any) => s + e.pesoTotal, 0),
+          frete,
+          valorMotorista,
+          adiantamento,
+          saldo,
+          peso,
           ocorrencias: m.entregas.filter((e: any) => e.status === "OCORRENCIA").length,
         };
       })

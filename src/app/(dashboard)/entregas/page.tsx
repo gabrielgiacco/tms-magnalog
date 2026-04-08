@@ -15,6 +15,23 @@ import {
   Package, MapPin, User, Truck, Trash2, ArrowUp, ArrowDown, ArrowUpDown, X,
 } from "lucide-react";
 
+/* ── Dynamic Filter Types ────────────────────────────────────────── */
+interface DynamicFilter {
+  id: string;
+  field: string;
+  value: string;
+}
+
+const FILTER_OPTIONS = [
+  { value: "cidade", label: "Cidade", placeholder: "Ex: São Paulo", type: "text" },
+  { value: "clienteNome", label: "Cliente", placeholder: "Razão social ou CNPJ", type: "text" },
+  { value: "fornecedor", label: "Fornecedor", placeholder: "Buscar por remetente", type: "text" },
+  { value: "uf", label: "UF", placeholder: "Ex: SP", type: "text" },
+  { value: "motorista", label: "Motorista", placeholder: "Nome do motorista", type: "text" },
+  { value: "volume", label: "Volume Específico", placeholder: "Ex: 5", type: "number" },
+  { value: "status", label: "Status", placeholder: "Selecione o status", type: "select" },
+];
+
 const STATUS_OPTIONS = [
   { value: "", label: "Todos os status" },
   { value: "PROGRAMADO", label: "Programado" },
@@ -72,31 +89,46 @@ export default function EntregasPage() {
 
   // Filters
   const [search, setSearch] = useState(initialized?.search ?? "");
-  const [filterStatus, setFilterStatus] = useState(initialized?.filterStatus ?? "");
-  const [filterCidade, setFilterCidade] = useState(initialized?.filterCidade ?? "");
   const [mostrarFinalizados, setMostrarFinalizados] = useState(initialized?.mostrarFinalizados ?? false);
   const [debouncedSearch, setDebouncedSearch] = useState(initialized?.search ?? "");
 
   const [showFiltros, setShowFiltros] = useState(initialized?.showFiltros ?? false);
-  const [filterCliente, setFilterCliente] = useState(initialized?.filterCliente ?? "");
-  const [filterDataInicio, setFilterDataInicio] = useState(initialized?.filterDataInicio ?? "");
-  const [filterDataFim, setFilterDataFim] = useState(initialized?.filterDataFim ?? "");
-  const [filterFornecedor, setFilterFornecedor] = useState(initialized?.filterFornecedor ?? "");
-  const [filterVolume, setFilterVolume] = useState(initialized?.filterVolume ?? "");
+  const [dynamicFilters, setDynamicFilters] = useState<DynamicFilter[]>(initialized?.dynamicFilters ?? []);
 
   // Tri-state sort: null → "asc" → "desc" → null
   const [sortBy, setSortBy] = useState<string | null>(initialized?.sortBy ?? null);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>(initialized?.sortOrder ?? null);
 
+  // Dynamic filter helpers
+  function addFilter() {
+    setDynamicFilters((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), field: "cidade", value: "" },
+    ]);
+    setShowFiltros(true);
+  }
+  function removeFilter(id: string) {
+    setDynamicFilters((prev) => prev.filter((f) => f.id !== id));
+    setPage(1);
+  }
+  function updateFilter(id: string, updates: Partial<DynamicFilter>) {
+    setDynamicFilters((prev) => prev.map((f) => f.id === id ? { ...f, ...updates } : f));
+    setPage(1);
+  }
+  function clearAllFilters() {
+    setDynamicFilters([]);
+    setPage(1);
+  }
+
   // Persist filters to sessionStorage
   useEffect(() => {
     sessionStorage.setItem("entregas_filters", JSON.stringify({
-      search, filterStatus, filterCidade, mostrarFinalizados, showFiltros,
-      filterCliente, filterDataInicio, filterDataFim, filterFornecedor, filterVolume,
+      search, mostrarFinalizados, showFiltros,
+      dynamicFilters,
       sortBy, sortOrder, page,
     }));
-  }, [search, filterStatus, filterCidade, mostrarFinalizados, showFiltros,
-      filterCliente, filterDataInicio, filterDataFim, filterFornecedor, filterVolume,
+  }, [search, mostrarFinalizados, showFiltros,
+      dynamicFilters,
       sortBy, sortOrder, page]);
 
   function toggleSort(col: string) {
@@ -131,14 +163,13 @@ export default function EntregasPage() {
       limit: "50",
       mostrarFinalizados: String(mostrarFinalizados),
     });
-    if (filterStatus) params.set("status", filterStatus);
-    if (filterCidade) params.set("cidade", filterCidade);
     if (debouncedSearch) params.set("cliente", debouncedSearch);
-    if (filterCliente) params.set("clienteNome", filterCliente);
-    if (filterDataInicio) params.set("dataInicio", filterDataInicio + "T00:00:00");
-    if (filterDataFim) params.set("dataFim", filterDataFim + "T23:59:59");
-    if (filterFornecedor) params.set("fornecedor", filterFornecedor);
-    if (filterVolume) params.set("volume", filterVolume);
+    // Apply dynamic filters — each filter appends its field/value to the query
+    for (const f of dynamicFilters) {
+      if (f.value.trim()) {
+        params.append(f.field, f.value.trim());
+      }
+    }
     if (sortBy && sortOrder) { params.set("sortBy", sortBy); params.set("sortOrder", sortOrder); }
 
     const res = await fetch(`/api/entregas?${params}`, { cache: "no-store" });
@@ -147,7 +178,7 @@ export default function EntregasPage() {
     setTotal(data.total || 0);
     setPages(data.pages || 1);
     setLoading(false);
-  }, [page, filterStatus, filterCidade, debouncedSearch, mostrarFinalizados, filterCliente, filterDataInicio, filterDataFim, filterFornecedor, filterVolume, sortBy, sortOrder]);
+  }, [page, debouncedSearch, mostrarFinalizados, dynamicFilters, sortBy, sortOrder]);
 
   useEffect(() => { fetchEntregas(); }, [fetchEntregas]);
 
@@ -252,59 +283,107 @@ export default function EntregasPage() {
                 </button>
               )}
             </div>
-            <select
-              value={filterStatus}
-              onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}
-              className="px-3 py-2 rounded-lg text-sm outline-none"
-              style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}>
-              {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <input
-              value={filterCidade}
-              onChange={(e) => { setFilterCidade(e.target.value); setPage(1); }}
-              placeholder="Filtrar por cidade..."
-              className="px-3 py-2 rounded-lg text-sm outline-none w-44"
-              style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}
-            />
             <label className="flex items-center gap-2 text-xs cursor-pointer select-none" style={{ color: "var(--text2)" }}>
               <input type="checkbox" checked={mostrarFinalizados} onChange={(e) => setMostrarFinalizados(e.target.checked)}
                 className="accent-orange-500 w-3.5 h-3.5" />
               Mostrar finalizados
             </label>
-            <Button variant="ghost" size="sm" onClick={() => setShowFiltros(!showFiltros)} className={showFiltros ? "bg-orange-50 text-orange-600" : ""}>
-              <Filter size={13} /> + Filtros
+            <Button variant="ghost" size="sm" onClick={addFilter}
+              className={dynamicFilters.length > 0 ? "bg-orange-50 text-orange-600" : ""}>
+              <Filter size={13} /> Filtros {dynamicFilters.length > 0 ? `(${dynamicFilters.length})` : ""}
             </Button>
             <Button variant="ghost" size="sm" onClick={fetchEntregas}>
               <RefreshCw size={13} /> Atualizar
             </Button>
           </div>
 
-          {/* Filtros Avançados Dropdown */}
-          {showFiltros && (
-            <div className="flex flex-wrap gap-3 mt-4 pt-4 items-end border-t border-gray-100">
-               <div>
-                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Cliente</span>
-                 <Input placeholder="Razão social ou CNPJ" value={filterCliente} onChange={(e) => { setFilterCliente(e.target.value); setPage(1); }} className="h-9 min-w-[200px]" />
-               </div>
-               <div>
-                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Data Início</span>
-                 <Input type="date" value={filterDataInicio} onChange={(e) => { setFilterDataInicio(e.target.value); setPage(1); }} className="h-9 min-w-[130px]" />
-               </div>
-               <div>
-                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Data Fim</span>
-                 <Input type="date" value={filterDataFim} onChange={(e) => { setFilterDataFim(e.target.value); setPage(1); }} className="h-9 min-w-[130px]" />
-               </div>
-               <div>
-                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Fornecedor</span>
-                 <Input placeholder="Buscar por remetente" value={filterFornecedor} onChange={(e) => { setFilterFornecedor(e.target.value); setPage(1); }} className="h-9 min-w-[200px]" />
-               </div>
-               <div>
-                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Volume Específico</span>
-                 <Input type="number" placeholder="Ex: 5" value={filterVolume} onChange={(e) => { setFilterVolume(e.target.value); setPage(1); }} className="h-9 w-32" />
-               </div>
-               <Button variant="ghost" size="sm" className="h-9 text-xs text-gray-400" onClick={() => { setFilterCliente(""); setFilterDataInicio(""); setFilterDataFim(""); setFilterFornecedor(""); setFilterVolume(""); setPage(1); }}>
-                 Limpar Filtros
-               </Button>
+          {/* Dynamic Filters */}
+          {dynamicFilters.length > 0 && (
+            <div className="mt-4 pt-4 space-y-2" style={{ borderTop: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5" style={{ color: "var(--text3)" }}>
+                  <Filter size={11} /> Filtros ativos ({dynamicFilters.length})
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={addFilter}
+                    className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-all hover:scale-105"
+                    style={{ color: "#f97316", background: "rgba(249,115,22,0.08)" }}>
+                    <Plus size={11} className="inline -mt-px mr-0.5" /> Adicionar filtro
+                  </button>
+                  <button
+                    onClick={clearAllFilters}
+                    className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-all hover:bg-red-50"
+                    style={{ color: "#ef4444" }}>
+                    <Trash2 size={11} className="inline -mt-px mr-0.5" /> Limpar todos
+                  </button>
+                </div>
+              </div>
+
+              {dynamicFilters.map((f, idx) => {
+                const opt = FILTER_OPTIONS.find((o) => o.value === f.field);
+                return (
+                  <div key={f.id}
+                    className="flex items-center gap-2 p-2.5 rounded-xl transition-all animate-in slide-in-from-top-1"
+                    style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
+                    {/* Connector label */}
+                    <span className="text-[10px] font-bold uppercase w-6 text-center flex-shrink-0"
+                      style={{ color: "var(--text3)" }}>
+                      {idx === 0 ? "" : "E"}
+                    </span>
+
+                    {/* Field Selector */}
+                    <select
+                      value={f.field}
+                      onChange={(e) => updateFilter(f.id, { field: e.target.value, value: "" })}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium outline-none flex-shrink-0 cursor-pointer"
+                      style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)", minWidth: "140px" }}>
+                      {FILTER_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+
+                    {/* Operator label */}
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded flex-shrink-0"
+                      style={{ background: "rgba(249,115,22,0.1)", color: "#f97316" }}>
+                      contém
+                    </span>
+
+                    {/* Value Input */}
+                    {opt?.type === "select" ? (
+                      <select
+                        value={f.value}
+                        onChange={(e) => updateFilter(f.id, { value: e.target.value })}
+                        className="flex-1 px-3 py-1.5 rounded-lg text-xs outline-none cursor-pointer"
+                        style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }}>
+                        <option value="">Selecione...</option>
+                        {STATUS_OPTIONS.filter((s) => s.value).map((s) => (
+                          <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type={opt?.type || "text"}
+                        value={f.value}
+                        onChange={(e) => updateFilter(f.id, { value: e.target.value })}
+                        placeholder={opt?.placeholder || "Digite o valor..."}
+                        className="flex-1 px-3 py-1.5 rounded-lg text-xs outline-none"
+                        style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }}
+                        autoFocus={idx === dynamicFilters.length - 1 && !f.value}
+                      />
+                    )}
+
+                    {/* Remove button */}
+                    <button
+                      onClick={() => removeFilter(f.id)}
+                      className="p-1.5 rounded-lg flex-shrink-0 transition-all hover:scale-110"
+                      style={{ color: "var(--text3)" }}
+                      title="Remover filtro">
+                      <X size={14} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>

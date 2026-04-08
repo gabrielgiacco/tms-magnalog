@@ -452,6 +452,11 @@ model Avaria {
   dataOcorrencia  DateTime
   localOcorrencia String?
 
+  dataChegada            DateTime?
+  transportadoraChegada  String?
+  motoristaChegada       String?
+  placaChegada           String?
+
   resolucao       String?        @db.Text
   resolvidoPorId  String?
   dataResolucao   DateTime?

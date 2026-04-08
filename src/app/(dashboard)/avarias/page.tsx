@@ -9,8 +9,8 @@ import {
 } from "@/components/ui";
 import { formatCurrency, formatDate, formatCNPJ } from "@/lib/utils";
 import {
-  AlertTriangle, Plus, Search, RefreshCw, Eye, ChevronLeft, ChevronRight,
-  BarChart2, List, FileText, Package, TrendingUp, User, Filter,
+  AlertTriangle, Plus, Search, RefreshCw, Eye, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Calendar, Truck,
+  BarChart2, List, FileText, Package, TrendingUp, User, Filter, Upload, Square, CheckSquare, LogOut,
 } from "lucide-react";
 
 const TIPO_LABELS: Record<string, string> = {
@@ -56,9 +56,21 @@ export default function AvariasPage() {
   const [filterFase, setFilterFase] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
-  // Devolucoes
-  const [devolucoes, setDevolucoes] = useState<any[]>([]);
+  // Devolucoes (grouped by avaria)
+  const [devGroups, setDevGroups] = useState<{ avaria: any; nfds: any[] }[]>([]);
   const [loadingDev, setLoadingDev] = useState(false);
+  const [expandedDevGroups, setExpandedDevGroups] = useState<string[]>([]);
+
+  // Import NFD modal
+  const [showImportNFD, setShowImportNFD] = useState(false);
+  const [importingNFD, setImportingNFD] = useState(false);
+  const [nfdFiles, setNfdFiles] = useState<File[]>([]);
+
+  // Bulk devolucao actions
+  const [selectedDevIds, setSelectedDevIds] = useState<string[]>([]);
+  const [showBulkSaida, setShowBulkSaida] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkForm, setBulkForm] = useState({ status: "RETIRADO", motorista: "", placa: "", transportadora: "", observacoes: "" });
 
   // Create modal
   const [showCreate, setShowCreate] = useState(false);
@@ -113,22 +125,25 @@ export default function AvariasPage() {
     finally { setLoading(false); }
   }, [page, debouncedSearch, filterTipo, filterFase, filterStatus]);
 
-  // Fetch devolucoes via avarias API (all avarias, extract devolucoes)
+  // Fetch devolucoes grouped by avaria
   const fetchDevolucoes = useCallback(async () => {
     setLoadingDev(true);
     try {
       const res = await fetch("/api/avarias?limit=200");
       const data = await res.json();
-      const allDevs: any[] = [];
+      const groups: { avaria: any; nfds: any[] }[] = [];
       for (const a of (data.avarias || [])) {
         if (a._count?.devolucoes > 0) {
           const detail = await fetch(`/api/avarias/${a.id}`).then(r => r.json());
-          for (const d of (detail.devolucoes || [])) {
-            allDevs.push({ ...d, avariaCodigo: a.codigo, avariaId: a.id });
+          if (detail.devolucoes?.length > 0) {
+            groups.push({
+              avaria: { id: a.id, codigo: a.codigo, status: a.status, descricao: a.descricao, dataOcorrencia: a.dataOcorrencia, dataChegada: detail.dataChegada || null, transportadoraChegada: detail.transportadoraChegada || "", motoristaChegada: detail.motoristaChegada || "", placaChegada: detail.placaChegada || "" },
+              nfds: detail.devolucoes.map((d: any) => ({ ...d, avariaCodigo: a.codigo, avariaId: a.id })),
+            });
           }
         }
       }
-      setDevolucoes(allDevs);
+      setDevGroups(groups);
     } catch { toast.error("Erro ao carregar devoluções"); }
     finally { setLoadingDev(false); }
   }, []);
@@ -216,6 +231,90 @@ export default function AvariasPage() {
   function resetForm() {
     setForm({ tipo: "AVARIA", fase: "CONFERENCIA", dataOcorrencia: new Date().toISOString().slice(0, 10), localOcorrencia: "", descricao: "", observacoes: "", entregaId: "", notaFiscalId: "", motoristaId: "" });
     setSelectedEntrega(null); setSelectedNF(null); setNfProdutos([]); setProdutosSelecionados([]); setStep(1);
+  }
+
+  async function handleImportNFD() {
+    if (nfdFiles.length === 0) { toast.error("Selecione ao menos um arquivo XML"); return; }
+    setImportingNFD(true);
+    try {
+      const fd = new FormData();
+      nfdFiles.forEach(f => fd.append("files", f));
+      const res = await fetch("/api/avarias/devolucao-avulsa", { method: "POST", body: fd });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const data = await res.json();
+      const msgs = [];
+      if (data.importadas > 0) msgs.push(`${data.importadas} NF(s) importada(s)`);
+      if (data.duplicadas > 0) msgs.push(`${data.duplicadas} duplicada(s)`);
+      if (data.erros?.length > 0) msgs.push(`${data.erros.length} erro(s)`);
+      toast.success(msgs.join(" · ") || "Importação concluída");
+      setShowImportNFD(false);
+      setNfdFiles([]);
+      fetchDevolucoes();
+      fetchResumo();
+      fetchAvarias();
+    } catch (e: any) { toast.error(e.message); }
+    finally { setImportingNFD(false); }
+  }
+
+  // Flat list of all NFDs across groups (for selection/bulk actions)
+  const allDevolucoes = devGroups.flatMap(g => g.nfds);
+
+  function toggleDevId(devId: string) {
+    setSelectedDevIds(prev => prev.includes(devId) ? prev.filter(x => x !== devId) : [...prev, devId]);
+  }
+
+  function toggleAllDevs() {
+    const pendentes = allDevolucoes.filter(d => d.status === "PENDENTE").map(d => d.id);
+    const allSelected = pendentes.length > 0 && pendentes.every(id => selectedDevIds.includes(id));
+    setSelectedDevIds(allSelected ? [] : pendentes);
+  }
+
+  async function handleBulkSaida() {
+    if (selectedDevIds.length === 0) { toast.error("Selecione ao menos uma NF"); return; }
+    setBulkSaving(true);
+    try {
+      const obs = [
+        bulkForm.transportadora && `Transportadora: ${bulkForm.transportadora}`,
+        bulkForm.motorista && `Motorista: ${bulkForm.motorista}`,
+        bulkForm.placa && `Placa: ${bulkForm.placa}`,
+        bulkForm.observacoes,
+      ].filter(Boolean).join(" | ");
+
+      for (const devId of selectedDevIds) {
+        const dev = allDevolucoes.find(d => d.id === devId);
+        if (!dev) continue;
+        await fetch(`/api/avarias/${dev.avariaId}/devolucao`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ devolucaoId: devId, status: bulkForm.status, responsavel: bulkForm.motorista || bulkForm.transportadora, observacoes: obs }),
+        });
+      }
+      toast.success(`${selectedDevIds.length} NF(s) atualizada(s)`);
+      setShowBulkSaida(false);
+      setSelectedDevIds([]);
+      setBulkForm({ status: "RETIRADO", motorista: "", placa: "", transportadora: "", observacoes: "" });
+      fetchDevolucoes();
+    } catch { toast.error("Erro ao atualizar"); }
+    finally { setBulkSaving(false); }
+  }
+
+  async function handleSaveAvariaField(avariaId: string, field: string, value: string) {
+    try {
+      const payload: any = {};
+      if (field === "dataChegada") {
+        payload.dataChegada = value || null;
+      } else {
+        payload[field] = value;
+      }
+      const res = await fetch(`/api/avarias/${avariaId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setDevGroups(prev => prev.map(g =>
+        g.avaria.id === avariaId ? { ...g, avaria: { ...g.avaria, [field]: value || null } } : g
+      ));
+    } catch (e: any) { toast.error(e.message || "Erro ao salvar"); }
   }
 
   const valorTotal = produtosSelecionados.reduce((s, p) => s + (p.quantidadeAvaria * p.valorUnitario), 0);
@@ -400,43 +499,305 @@ export default function AvariasPage() {
 
         {/* DEVOLUÇÕES TAB */}
         {tab === "devolucoes" && (
-          <Card className="p-0 overflow-hidden">
-            {loadingDev ? <Loading /> : devolucoes.length === 0 ? <Empty icon="📦" text="Nenhuma NF de devolução importada" /> : (
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>NF Devolução</Th>
-                    <Th>Emitente</Th>
-                    <Th>Valor</Th>
-                    <Th>Avaria</Th>
-                    <Th>Status</Th>
-                    <Th>Data</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {devolucoes.map(d => (
-                    <Tr key={d.id} onClick={() => router.push(`/avarias/${d.avariaId}`)}>
-                      <Td><span className="font-mono text-xs font-bold" style={{ color: "#3b82f6" }}>NF {d.numero}</span></Td>
-                      <Td><span className="text-xs" style={{ color: "var(--text2)" }}>{d.emitenteRazao}</span></Td>
-                      <Td><span className="text-xs font-mono text-emerald-600">{formatCurrency(d.valorNota)}</span></Td>
-                      <Td><span className="font-mono text-xs" style={{ color: "var(--accent)" }}>{d.avariaCodigo}</span></Td>
-                      <Td>
-                        <span className="text-[10px] font-bold px-2 py-1 rounded-full" style={{
-                          background: d.status === "PENDENTE" ? "rgba(249,115,22,.1)" : d.status === "DESCARTADO" ? "rgba(107,114,128,.1)" : "rgba(16,185,129,.1)",
-                          color: d.status === "PENDENTE" ? "#f97316" : d.status === "DESCARTADO" ? "#6b7280" : "#10b981",
-                        }}>
-                          {STATUS_DEV_LABELS[d.status] || d.status}
-                        </span>
-                      </Td>
-                      <Td><span className="text-xs font-mono" style={{ color: "var(--text3)" }}>{formatDate(d.createdAt)}</span></Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
-            )}
-          </Card>
+          <>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {selectedDevIds.length > 0 && (
+                <Button size="sm" onClick={() => { setShowBulkSaida(true); setBulkForm({ status: "RETIRADO", motorista: "", placa: "", transportadora: "", observacoes: "" }); }}>
+                  <LogOut size={14} /> Dar Saída ({selectedDevIds.length})
+                </Button>
+              )}
+              {allDevolucoes.some(d => d.status === "PENDENTE") && (
+                <button onClick={toggleAllDevs} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:bg-[var(--surface2)]" style={{ color: "var(--text2)" }}>
+                  {allDevolucoes.filter(d => d.status === "PENDENTE").every(d => selectedDevIds.includes(d.id))
+                    ? <CheckSquare size={14} className="text-orange-500" />
+                    : <Square size={14} className="text-slate-400" />
+                  }
+                  Selecionar Todas
+                </button>
+              )}
+            </div>
+            <Button onClick={() => { setNfdFiles([]); setShowImportNFD(true); }}>
+              <Upload size={15} /> Importar NF Devolução
+            </Button>
+          </div>
+
+          {loadingDev ? <Loading /> : devGroups.length === 0 ? <Empty icon="📦" text="Nenhuma NF de devolução importada" /> : (
+            <div className="space-y-3">
+              {devGroups.map(group => {
+                const isExpanded = expandedDevGroups.includes(group.avaria.id);
+                const totalValor = group.nfds.reduce((s: number, d: any) => s + (d.valorNota || 0), 0);
+                const emitente = group.nfds[0]?.emitenteRazao || "—";
+                const cnpj = group.nfds[0]?.emitenteCnpj || "";
+                const pendentes = group.nfds.filter((d: any) => d.status === "PENDENTE");
+                const allGroupSelected = pendentes.length > 0 && pendentes.every((d: any) => selectedDevIds.includes(d.id));
+
+                return (
+                  <Card key={group.avaria.id} className="p-0 overflow-hidden">
+                    {/* Group Header */}
+                    <div
+                      className="flex items-center justify-between p-4 cursor-pointer hover:bg-[#1e293b] transition-colors"
+                      onClick={() => setExpandedDevGroups(prev =>
+                        prev.includes(group.avaria.id)
+                          ? prev.filter((id: string) => id !== group.avaria.id)
+                          : [...prev, group.avaria.id]
+                      )}
+                    >
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        {/* Group checkbox */}
+                        {pendentes.length > 0 && (
+                          <button onClick={ev => {
+                            ev.stopPropagation();
+                            const pendenteIds = pendentes.map((p: any) => p.id);
+                            if (allGroupSelected) {
+                              setSelectedDevIds(prev => prev.filter(id => !pendenteIds.includes(id)));
+                            } else {
+                              setSelectedDevIds(prev => [...new Set([...prev, ...pendenteIds])]);
+                            }
+                          }}>
+                            {allGroupSelected ? <CheckSquare size={18} className="text-orange-500" /> : <Square size={18} className="text-slate-400" />}
+                          </button>
+                        )}
+
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(234,179,8,.08)", border: "1px solid rgba(234,179,8,.15)" }}>
+                          <Package size={18} className="text-yellow-500" />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>{group.avaria.codigo}</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{
+                              background: group.avaria.status === "PENDENTE" ? "rgba(249,115,22,.1)" : group.avaria.status === "RESOLVIDA" ? "rgba(16,185,129,.1)" : "rgba(107,114,128,.1)",
+                              color: group.avaria.status === "PENDENTE" ? "#f97316" : group.avaria.status === "RESOLVIDA" ? "#10b981" : "#6b7280",
+                            }}>
+                              {STATUS_LABELS[group.avaria.status] || group.avaria.status}
+                            </span>
+                          </div>
+                          <div className="text-xs truncate" style={{ color: "var(--text2)" }}>
+                            {emitente}
+                            {cnpj && <span className="ml-2 font-mono text-[10px]" style={{ color: "var(--text3)" }}>{formatCNPJ(cnpj)}</span>}
+                          </div>
+                        </div>
+
+                        {/* Summary stats */}
+                        <div className="hidden md:flex items-center gap-6 flex-shrink-0">
+                          <div className="text-center">
+                            <div className="text-[9px] font-mono uppercase text-slate-400">NFs</div>
+                            <div className="text-sm font-bold font-mono" style={{ color: "var(--text)" }}>{group.nfds.length}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-[9px] font-mono uppercase text-slate-400">Valor Total</div>
+                            <div className="text-sm font-bold font-mono text-emerald-600">{formatCurrency(totalValor)}</div>
+                          </div>
+                          <div className="text-center" onClick={ev => ev.stopPropagation()}>
+                            <div className="text-[9px] font-mono uppercase text-slate-400 flex items-center gap-1 justify-center"><Calendar size={10} /> Chegada</div>
+                            <input
+                              type="date"
+                              value={group.avaria.dataChegada ? new Date(group.avaria.dataChegada).toISOString().slice(0, 10) : ""}
+                              onChange={e => handleSaveAvariaField(group.avaria.id, "dataChegada", e.target.value)}
+                              className="text-xs font-mono font-bold px-1.5 py-0.5 rounded cursor-pointer outline-none"
+                              style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: group.avaria.dataChegada ? "var(--text)" : "var(--text3)", maxWidth: "120px" }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="ml-3 flex-shrink-0">
+                        {isExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+                      </div>
+                    </div>
+
+                    {/* Mobile stats */}
+                    <div className="flex md:hidden items-center gap-4 px-4 pb-3 -mt-1">
+                      <span className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>
+                        {group.nfds.length} NF(s) · {formatCurrency(totalValor)}
+                      </span>
+                      <input
+                        type="date"
+                        value={group.avaria.dataChegada ? new Date(group.avaria.dataChegada).toISOString().slice(0, 10) : ""}
+                        onChange={e => handleSaveAvariaField(group.avaria.id, "dataChegada", e.target.value)}
+                        onClick={ev => ev.stopPropagation()}
+                        className="text-[10px] font-mono px-1.5 py-0.5 rounded cursor-pointer outline-none"
+                        style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: group.avaria.dataChegada ? "var(--text)" : "var(--text3)" }}
+                      />
+                    </div>
+
+                    {/* Expanded - transport info + individual NFDs */}
+                    {isExpanded && (
+                      <div style={{ borderTop: "1px solid var(--border)" }}>
+                        {/* Editable transport info */}
+                        <div className="px-4 py-3 flex flex-wrap items-center gap-3" style={{ background: "var(--surface2)", borderBottom: "1px solid var(--border)" }}>
+                          <Truck size={14} className="text-slate-400 flex-shrink-0" />
+                          <span className="text-[10px] font-mono uppercase font-bold text-slate-400 flex-shrink-0">Entrega:</span>
+                          <input
+                            type="text"
+                            placeholder="Transportadora"
+                            value={group.avaria.transportadoraChegada || ""}
+                            onChange={e => setDevGroups(prev => prev.map(g => g.avaria.id === group.avaria.id ? { ...g, avaria: { ...g.avaria, transportadoraChegada: e.target.value } } : g))}
+                            onBlur={e => handleSaveAvariaField(group.avaria.id, "transportadoraChegada", e.target.value)}
+                            className="text-xs px-2 py-1.5 rounded-lg outline-none flex-1 min-w-[120px]"
+                            style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Motorista"
+                            value={group.avaria.motoristaChegada || ""}
+                            onChange={e => setDevGroups(prev => prev.map(g => g.avaria.id === group.avaria.id ? { ...g, avaria: { ...g.avaria, motoristaChegada: e.target.value } } : g))}
+                            onBlur={e => handleSaveAvariaField(group.avaria.id, "motoristaChegada", e.target.value)}
+                            className="text-xs px-2 py-1.5 rounded-lg outline-none flex-1 min-w-[120px]"
+                            style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Placa"
+                            value={group.avaria.placaChegada || ""}
+                            onChange={e => setDevGroups(prev => prev.map(g => g.avaria.id === group.avaria.id ? { ...g, avaria: { ...g.avaria, placaChegada: e.target.value.toUpperCase() } } : g))}
+                            onBlur={e => handleSaveAvariaField(group.avaria.id, "placaChegada", e.target.value)}
+                            className="text-xs px-2 py-1.5 rounded-lg outline-none font-mono uppercase w-[100px]"
+                            style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }}
+                          />
+                        </div>
+
+                        <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+                          {group.nfds.map((d: any) => (
+                            <div key={d.id} className="flex items-center gap-4 px-4 py-3 hover:bg-[#1e293b] transition-colors cursor-pointer"
+                              onClick={() => router.push(`/avarias/${d.avariaId}`)}>
+                              {/* Checkbox */}
+                              <div className="flex-shrink-0">
+                                {d.status === "PENDENTE" ? (
+                                  <button onClick={ev => { ev.stopPropagation(); toggleDevId(d.id); }}>
+                                    {selectedDevIds.includes(d.id) ? <CheckSquare size={16} className="text-orange-500" /> : <Square size={16} className="text-slate-400" />}
+                                  </button>
+                                ) : <div className="w-4" />}
+                              </div>
+
+                              {/* NF icon */}
+                              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.15)" }}>
+                                <FileText size={14} className="text-blue-500" />
+                              </div>
+
+                              {/* NF info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs font-bold" style={{ color: "#3b82f6" }}>NF {d.numero}</span>
+                                  {d.serie && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--surface2)", color: "var(--text3)" }}>Série {d.serie}</span>}
+                                </div>
+                                {d.chaveAcesso && (
+                                  <div className="text-[10px] font-mono truncate mt-0.5" style={{ color: "var(--text3)" }}>{d.chaveAcesso}</div>
+                                )}
+                              </div>
+
+                              {/* Value + Date */}
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-xs font-mono font-bold text-emerald-600">{formatCurrency(d.valorNota)}</div>
+                                <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>{formatDate(d.dataEmissao || d.createdAt)}</div>
+                              </div>
+
+                              {/* Status */}
+                              <div className="flex-shrink-0">
+                                <span className="text-[10px] font-bold px-2 py-1 rounded-full" style={{
+                                  background: d.status === "PENDENTE" ? "rgba(249,115,22,.1)" : d.status === "DESCARTADO" ? "rgba(107,114,128,.1)" : "rgba(16,185,129,.1)",
+                                  color: d.status === "PENDENTE" ? "#f97316" : d.status === "DESCARTADO" ? "#6b7280" : "#10b981",
+                                }}>
+                                  {STATUS_DEV_LABELS[d.status] || d.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+          </>
         )}
       </div>
+
+      {/* BULK SAÍDA MODAL */}
+      <Modal open={showBulkSaida} onClose={() => setShowBulkSaida(false)} title={`Dar Saída — ${selectedDevIds.length} NF(s)`} size="md">
+        <div className="space-y-4">
+          <div className="p-3 rounded-xl flex items-center gap-3" style={{ background: "rgba(249,115,22,.08)", border: "1px solid rgba(249,115,22,.2)" }}>
+            <LogOut size={18} className="text-orange-500 flex-shrink-0" />
+            <p className="text-sm" style={{ color: "var(--text2)" }}>
+              Registre os dados de quem retirou a mercadoria. Todas as NFs selecionadas serão atualizadas.
+            </p>
+          </div>
+          <Select label="Status" value={bulkForm.status} onChange={e => setBulkForm(f => ({ ...f, status: e.target.value }))}>
+            <option value="RETIRADO">Retirado</option>
+            <option value="DEVOLVIDO_CLIENTE">Devolvido ao Cliente</option>
+            <option value="DESCARTADO">Descartado</option>
+          </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Transportadora" value={bulkForm.transportadora} onChange={e => setBulkForm(f => ({ ...f, transportadora: e.target.value }))} placeholder="Nome da transportadora..." />
+            <Input label="Motorista" value={bulkForm.motorista} onChange={e => setBulkForm(f => ({ ...f, motorista: e.target.value }))} placeholder="Nome do motorista..." />
+            <Input label="Placa do Veículo" value={bulkForm.placa} onChange={e => setBulkForm(f => ({ ...f, placa: e.target.value.toUpperCase() }))} placeholder="ABC-1234" />
+          </div>
+          <Textarea label="Observações" value={bulkForm.observacoes} onChange={e => setBulkForm(f => ({ ...f, observacoes: e.target.value }))} placeholder="Informações adicionais..." rows={3} />
+
+          <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+            <div className="px-3 py-2 text-[10px] font-mono uppercase font-bold" style={{ background: "var(--surface2)", color: "var(--text3)" }}>
+              NFs selecionadas
+            </div>
+            <div className="max-h-32 overflow-y-auto divide-y" style={{ borderColor: "var(--border)" }}>
+              {allDevolucoes.filter(d => selectedDevIds.includes(d.id)).map(d => (
+                <div key={d.id} className="px-3 py-2 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="font-mono font-bold" style={{ color: "#3b82f6" }}>NF {d.numero}</span>
+                    <span className="ml-2" style={{ color: "var(--text3)" }}>{d.emitenteRazao}</span>
+                  </div>
+                  <span className="font-mono" style={{ color: "#10b981" }}>{formatCurrency(d.valorNota)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+          <Button variant="ghost" onClick={() => setShowBulkSaida(false)}>Cancelar</Button>
+          <Button onClick={handleBulkSaida} loading={bulkSaving}>Confirmar ({selectedDevIds.length})</Button>
+        </div>
+      </Modal>
+
+      {/* IMPORT NFD MODAL */}
+      <Modal open={showImportNFD} onClose={() => { setShowImportNFD(false); setNfdFiles([]); }} title="Importar NF de Devolução" size="md">
+        <div className="space-y-4">
+          <p className="text-sm" style={{ color: "var(--text2)" }}>
+            Selecione os arquivos XML das notas fiscais de devolução. Cada NF será registrada automaticamente como uma devolução para controle interno.
+          </p>
+          <div
+            className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors hover:border-orange-500/50"
+            style={{ borderColor: "var(--border)", background: "var(--surface2)" }}
+            onClick={() => document.getElementById("nfd-file-input")?.click()}
+          >
+            <Upload size={32} className="mx-auto mb-3 text-slate-400" />
+            <p className="text-sm font-medium" style={{ color: "var(--text)" }}>
+              {nfdFiles.length > 0 ? `${nfdFiles.length} arquivo(s) selecionado(s)` : "Clique para selecionar XMLs"}
+            </p>
+            <p className="text-[10px] mt-1" style={{ color: "var(--text3)" }}>Aceita múltiplos arquivos .xml</p>
+            <input id="nfd-file-input" type="file" multiple accept=".xml" className="hidden"
+              onChange={(e) => setNfdFiles(Array.from(e.target.files || []))} />
+          </div>
+
+          {nfdFiles.length > 0 && (
+            <div className="space-y-1.5 max-h-40 overflow-y-auto">
+              {nfdFiles.map((f, i) => (
+                <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg text-xs" style={{ background: "var(--surface2)" }}>
+                  <span className="font-mono truncate flex-1" style={{ color: "var(--text)" }}>{f.name}</span>
+                  <span className="text-[10px] ml-2 flex-shrink-0" style={{ color: "var(--text3)" }}>{(f.size / 1024).toFixed(0)} KB</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end gap-3 mt-6 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
+          <Button variant="ghost" onClick={() => { setShowImportNFD(false); setNfdFiles([]); }}>Cancelar</Button>
+          <Button onClick={handleImportNFD} loading={importingNFD} disabled={nfdFiles.length === 0}>
+            <Upload size={14} /> Importar {nfdFiles.length > 0 ? `(${nfdFiles.length})` : ""}
+          </Button>
+        </div>
+      </Modal>
 
       {/* CREATE AVARIA MODAL */}
       <Modal open={showCreate} onClose={() => { setShowCreate(false); resetForm(); }} title={`Nova Avaria — Etapa ${step}/3`} size="xl">

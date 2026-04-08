@@ -4,8 +4,8 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { XMLParser } from "fast-xml-parser";
 
-function parseNFProducts(xmlContent: string | null) {
-  if (!xmlContent) return [];
+function parseNFXml(xmlContent: string | null) {
+  if (!xmlContent) return { produtos: [], infAdicionais: "", infFisco: "", emitente: null, destinatario: null, volumes: 0, pesoBruto: 0 };
   try {
     const parser = new XMLParser({
       ignoreAttributes: false,
@@ -16,22 +16,57 @@ function parseNFProducts(xmlContent: string | null) {
     const parsed = parser.parse(xmlContent);
     const nfe = parsed?.nfeProc?.NFe || parsed?.NFe;
     const infNFe = nfe?.infNFe;
-    if (!infNFe) return [];
+    if (!infNFe) return { produtos: [], infAdicionais: "", infFisco: "", emitente: null, destinatario: null, volumes: 0, pesoBruto: 0 };
+
     const detArray = Array.isArray(infNFe.det) ? infNFe.det : infNFe.det ? [infNFe.det] : [];
-    return detArray.map((d: any) => {
+    const produtos = detArray.map((d: any) => {
       const p = d.prod || {};
       return {
         codigoProduto: String(p.cProd || ""),
         descricao: String(p.xProd || ""),
         ncm: String(p.NCM || ""),
+        cfop: String(p.CFOP || ""),
         unidade: String(p.uCom || ""),
         quantidade: parseFloat(String(p.qCom || "0")) || 0,
         valorUnitario: parseFloat(String(p.vUnCom || "0")) || 0,
         valorTotal: parseFloat(String(p.vProd || "0")) || 0,
       };
     });
+
+    const infAdic = infNFe.infAdic || {};
+    const emit = infNFe.emit || {};
+    const enderEmit = emit.enderEmit || {};
+    const dest = infNFe.dest || {};
+    const enderDest = dest.enderDest || {};
+    const transp = infNFe.transp || {};
+    const vols = Array.isArray(transp.vol) ? transp.vol : transp.vol ? [transp.vol] : [];
+
+    return {
+      produtos,
+      infAdicionais: String(infAdic.infCpl || ""),
+      infFisco: String(infAdic.infAdFisco || ""),
+      emitente: {
+        razaoSocial: String(emit.xNome || ""),
+        fantasia: String(emit.xFant || ""),
+        cnpj: String(emit.CNPJ || emit.CPF || ""),
+        ie: String(emit.IE || ""),
+        cidade: String(enderEmit.xMun || ""),
+        uf: String(enderEmit.UF || ""),
+        endereco: `${enderEmit.xLgr || ""} ${enderEmit.nro || ""}`.trim(),
+        bairro: String(enderEmit.xBairro || ""),
+        telefone: String(enderEmit.fone || ""),
+      },
+      destinatario: {
+        razaoSocial: String(dest.xNome || ""),
+        cnpj: String(dest.CNPJ || dest.CPF || ""),
+        cidade: String(enderDest.xMun || ""),
+        uf: String(enderDest.UF || ""),
+      },
+      volumes: vols.reduce((s: number, v: any) => s + (parseInt(String(v.qVol || "0")) || 0), 0),
+      pesoBruto: vols.reduce((s: number, v: any) => s + (parseFloat(String(v.pesoB || "0")) || 0), 0),
+    };
   } catch {
-    return [];
+    return { produtos: [], infAdicionais: "", infFisco: "", emitente: null, destinatario: null, volumes: 0, pesoBruto: 0 };
   }
 }
 
@@ -64,13 +99,21 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     // Parse NF products if NF is linked
     let produtosNF: any[] = [];
     if (avaria.notaFiscal?.xmlOriginal) {
-      produtosNF = parseNFProducts(avaria.notaFiscal.xmlOriginal);
+      const parsed = parseNFXml(avaria.notaFiscal.xmlOriginal);
+      produtosNF = parsed.produtos;
     }
 
     const { notaFiscal, ...rest } = avaria;
     const nfSemXml = notaFiscal ? (() => { const { xmlOriginal, ...nf } = notaFiscal; return nf; })() : null;
 
-    return NextResponse.json({ ...rest, notaFiscal: nfSemXml, produtosNF });
+    // Enrich devolucoes with parsed XML data
+    const devolucoesEnriquecidas = avaria.devolucoes.map((d: any) => {
+      const { xmlOriginal, ...devSemXml } = d;
+      const parsed = parseNFXml(xmlOriginal);
+      return { ...devSemXml, ...parsed };
+    });
+
+    return NextResponse.json({ ...rest, notaFiscal: nfSemXml, produtosNF, devolucoes: devolucoesEnriquecidas });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -93,6 +136,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (body.descricao !== undefined) data.descricao = body.descricao;
     if (body.tipo) data.tipo = body.tipo;
     if (body.fase) data.fase = body.fase;
+    if (body.dataChegada !== undefined) data.dataChegada = body.dataChegada ? new Date(body.dataChegada) : null;
+    if (body.transportadoraChegada !== undefined) data.transportadoraChegada = body.transportadoraChegada || null;
+    if (body.motoristaChegada !== undefined) data.motoristaChegada = body.motoristaChegada || null;
+    if (body.placaChegada !== undefined) data.placaChegada = body.placaChegada || null;
 
     // Auto-set resolution metadata
     if (body.status === "RESOLVIDA" && !body.dataResolucao) {
