@@ -5,9 +5,11 @@ import { useSession } from "next-auth/react";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button, Card, Loading, StatusBadge, Modal, Input, Select, Textarea, ComboboxMotorista } from "@/components/ui";
 import { formatCurrency, formatDate, formatWeight, formatCNPJ } from "@/lib/utils";
-import { Copy, FileText, History, Package, MapPin, Truck, ChevronLeft, Calendar, User, Clock, CheckCircle2, AlertCircle, Trash2, ShieldCheck, DollarSign, Scissors, ChevronDown, ChevronUp, Box, Info, Weight, Layers, AlertTriangle } from "lucide-react";
+import { Copy, FileText, History, Package, MapPin, Truck, ChevronLeft, Calendar, User, Clock, CheckCircle2, AlertCircle, Trash2, ShieldCheck, DollarSign, Scissors, ChevronDown, ChevronUp, Box, Info, Weight, Layers, AlertTriangle, Printer, Maximize2, Minimize2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { QualityScoring } from "@/components/quality/QualityScoring";
+import { DanfeViewer } from "@/components/danfe/DanfeViewer";
+import { parseDanfeXML } from "@/lib/danfe-parser";
 
 const STATUS_FLOW = [
   { key: "PROGRAMADO", label: "Programado", icon: "📋" },
@@ -37,6 +39,8 @@ export default function EntregaDetailPage() {
   const [tab, setTab] = useState("info");
   const [selectedNotas, setSelectedNotas] = useState<string[]>([]);
   const [separando, setSeparando] = useState(false);
+  const [danfeModal, setDanfeModal] = useState<{ open: boolean; xml: string | null; loading: boolean; fullscreen: boolean }>({ open: false, xml: null, loading: false, fullscreen: false });
+  const [showQualityPrompt, setShowQualityPrompt] = useState(false);
 
   useEffect(() => {
     fetch(`/api/entregas/${id}`).then((r) => r.json()).then((d) => { 
@@ -74,14 +78,17 @@ export default function EntregaDetailPage() {
       const res = await fetch(`/api/entregas/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          status: newStatus, 
-          ...(newStatus === "ENTREGUE" ? { dataEntrega: new Date().toISOString() } : {}) 
+        body: JSON.stringify({
+          status: newStatus,
+          ...(newStatus === "ENTREGUE" ? { dataEntrega: new Date().toISOString() } : {})
         }),
       });
       const updated = await res.json();
       setEntrega(updated);
       toast.success("Status atualizado");
+      if (newStatus === "FINALIZADO") {
+        setShowQualityPrompt(true);
+      }
     } catch { toast.error("Erro ao atualizar"); }
     finally { setSaving(false); }
   }
@@ -118,15 +125,16 @@ export default function EntregaDetailPage() {
     if (!ocorrForm.descricao) { toast.error("Descreva a ocorrência"); return; }
     setSaving(true);
     try {
+      const ocRes = await fetch("/api/entregas/" + id + "/ocorrencia", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ocorrForm),
+      });
+      if (!ocRes.ok) { toast.error("Erro ao registrar ocorrência"); return; }
       await fetch(`/api/entregas/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "OCORRENCIA" }),
       });
-      await fetch("/api/entregas/" + id + "/ocorrencia", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(ocorrForm),
-      }).catch(() => {});
       const updated = await fetch(`/api/entregas/${id}`).then((r) => r.json());
       setEntrega(updated);
       setShowOcorrencia(false);
@@ -160,6 +168,19 @@ export default function EntregaDetailPage() {
 
   function toggleNota(notaId: string) {
     setSelectedNotas((prev) => prev.includes(notaId) ? prev.filter((id) => id !== notaId) : [...prev, notaId]);
+  }
+
+  async function handleViewDanfe(notaId: string) {
+    setDanfeModal({ open: true, xml: null, loading: true, fullscreen: false });
+    try {
+      const res = await fetch(`/api/notas/${notaId}/danfe`);
+      if (!res.ok) throw new Error("XML não disponível");
+      const { xml } = await res.json();
+      setDanfeModal({ open: true, xml, loading: false, fullscreen: false });
+    } catch {
+      setDanfeModal({ open: false, xml: null, loading: false, fullscreen: false });
+      toast.error("XML da DANFE não disponível para esta nota");
+    }
   }
 
   const set = (k: string, v: string) => setEditForm((f: any) => ({ ...f, [k]: v }));
@@ -266,7 +287,12 @@ export default function EntregaDetailPage() {
                   <Field label="CNPJ" value={formatCNPJ(entrega.cnpj)} mono />
                   {entrega.notas && entrega.notas.length > 0 ? (
                     entrega.notas.map((n: any) => (
-                      <Field key={n.id} label={`Chave de Acesso (NF ${n.numero})`} value={n.chaveAcesso} mono color="#3b82f6" />
+                      <div key={n.id} className="cursor-pointer group" onClick={() => handleViewDanfe(n.id)}>
+                        <div className="text-[9px] font-mono uppercase tracking-widest text-slate-400 mb-0.5">{`Chave de Acesso (NF ${n.numero})`}</div>
+                        <div className="text-xs font-mono font-medium text-blue-500 group-hover:text-blue-400 group-hover:underline transition-colors flex items-center gap-1.5">
+                          {n.chaveAcesso} <FileText size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
                     ))
                   ) : (
                     entrega.chaveAcesso && <Field label="Chave de Acesso (NF)" value={entrega.chaveAcesso} mono color="#3b82f6" />
@@ -325,7 +351,7 @@ export default function EntregaDetailPage() {
 
             {/* Notas Fiscais Detail Cards */}
             {entrega.notas && entrega.notas.length > 0 && entrega.notas.map((nf: any) => (
-              <NFDetailCard key={nf.id} nf={nf} />
+              <NFDetailCard key={nf.id} nf={nf} onViewDanfe={handleViewDanfe} />
             ))}
           </div>
         )}
@@ -469,6 +495,72 @@ export default function EntregaDetailPage() {
          </div>
       </Modal>
 
+      {/* Quality Prompt Modal */}
+      <Modal open={showQualityPrompt} onClose={() => setShowQualityPrompt(false)} title="Avaliação de Qualidade Operacional" size="lg">
+        <div className="mb-4 p-3 rounded-xl flex items-center gap-3" style={{ background: "rgba(249,115,22,.08)", border: "1px solid rgba(249,115,22,.2)" }}>
+          <ShieldCheck size={20} className="text-orange-500 flex-shrink-0" />
+          <p className="text-sm" style={{ color: "var(--text2)" }}>
+            Entrega finalizada! Registre a avaliação de qualidade operacional antes de continuar.
+          </p>
+        </div>
+        <QualityScoring entregaId={id} onSave={() => { setShowQualityPrompt(false); toast.success("Avaliação salva!"); }} />
+      </Modal>
+
+      {/* DANFE Modal */}
+      {danfeModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,.5)" }}>
+          <div
+            className={`relative rounded-2xl shadow-2xl flex flex-col animate-fadeIn transition-all duration-300 ${danfeModal.fullscreen ? "w-full h-full rounded-none" : "w-full max-w-4xl max-h-[90vh]"}`}
+            style={{ background: "var(--surface)" }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>DANFE</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    const el = document.getElementById("danfe-print");
+                    if (!el) return;
+                    const win = window.open("", "_blank");
+                    if (!win) return;
+                    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]')).map((s) => s.outerHTML).join("");
+                    win.document.write(`<html><head>${styles}</head><body style="padding:10px">${el.outerHTML}</body></html>`);
+                    win.document.close();
+                    win.onload = () => { win.print(); };
+                  }}
+                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title="Imprimir"
+                >
+                  <Printer size={16} className="text-slate-500" />
+                </button>
+                <button
+                  onClick={() => setDanfeModal((prev) => ({ ...prev, fullscreen: !prev.fullscreen }))}
+                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title={danfeModal.fullscreen ? "Reduzir" : "Ampliar"}
+                >
+                  {danfeModal.fullscreen ? <Minimize2 size={16} className="text-slate-500" /> : <Maximize2 size={16} className="text-slate-500" />}
+                </button>
+                <button
+                  onClick={() => setDanfeModal({ open: false, xml: null, loading: false, fullscreen: false })}
+                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title="Fechar"
+                >
+                  <span className="text-slate-500 text-lg leading-none">&times;</span>
+                </button>
+              </div>
+            </div>
+            {/* Body */}
+            <div className="flex-1 overflow-auto p-4">
+              {danfeModal.loading ? (
+                <div className="flex items-center justify-center py-16"><Loading /></div>
+              ) : danfeModal.xml ? (
+                <DanfeViewer data={parseDanfeXML(danfeModal.xml)} />
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Ocorrência Modal */}
       <Modal open={showOcorrencia} onClose={() => setShowOcorrencia(false)} title="Registrar Ocorrência" size="sm">
         <div className="space-y-4">
@@ -512,7 +604,7 @@ function Field({ label, value, mono, color }: { label: string; value?: string | 
   );
 }
 
-function NFDetailCard({ nf }: { nf: any }) {
+function NFDetailCard({ nf, onViewDanfe }: { nf: any; onViewDanfe: (notaId: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const hasProdutos = nf.produtos && nf.produtos.length > 0;
   const hasInfoAdicional = nf.infAdicionais && nf.infAdicionais.trim();
@@ -610,7 +702,12 @@ function NFDetailCard({ nf }: { nf: any }) {
                   <Field label="Número" value={nf.numero} mono />
                   <Field label="Série" value={nf.serie} mono />
                   <Field label="Data Emissão" value={formatDate(nf.dataEmissao)} mono />
-                  <Field label="Chave de Acesso" value={nf.chaveAcesso} mono color="#3b82f6" />
+                  <div className="cursor-pointer group col-span-2" onClick={(e) => { e.stopPropagation(); onViewDanfe(nf.id); }}>
+                    <div className="text-[9px] font-mono uppercase tracking-widest text-slate-400 mb-0.5">Chave de Acesso</div>
+                    <div className="text-xs font-mono font-medium text-blue-500 group-hover:text-blue-400 group-hover:underline transition-colors flex items-center gap-1.5">
+                      {nf.chaveAcesso} <FileText size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </div>
                   <Field label="Volumes" value={String(nf.volumes || 0)} mono />
                   <Field label="Peso Bruto" value={formatWeight(nf.pesoBruto)} mono />
                   <Field label="Valor Total NF" value={formatCurrency(nf.valorNota)} color="#10b981" />
