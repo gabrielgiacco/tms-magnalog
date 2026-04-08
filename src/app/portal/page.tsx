@@ -4,7 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Loading, StatusBadge } from "@/components/ui";
 import { formatDate, formatWeight } from "@/lib/utils";
-import { Search, LogOut, FileText, ChevronLeft, ChevronRight, Package } from "lucide-react";
+import { Search, LogOut, FileText, ChevronLeft, ChevronRight, Package, AlertTriangle } from "lucide-react";
 
 const STATUS_LABELS: Record<string, string> = {
   PROGRAMADO: "Programado", EM_SEPARACAO: "Em Separação", CARREGADO: "Carregado",
@@ -170,7 +170,20 @@ export default function PortalPage() {
                         ) : <span className="text-[10px]" style={{ color: "var(--text3)" }}>Aguardando</span>}
                       </td>
                       <td className="px-4 py-3">
-                        {n.entrega ? <StatusBadge status={n.entrega.status} /> : (
+                        {n.entrega ? (
+                          <div>
+                            <StatusBadge status={n.entrega.status} />
+                            {n.entrega.status === "OCORRENCIA" && n.entrega.ocorrencias?.length > 0 && (
+                              <div className="mt-1.5 p-2 rounded-lg" style={{ background: "rgba(239,68,68,.06)", border: "1px solid rgba(239,68,68,.15)" }}>
+                                <div className="flex items-center gap-1 mb-0.5">
+                                  <AlertTriangle size={10} className="text-red-500" />
+                                  <span className="text-[9px] font-bold uppercase text-red-500">{n.entrega.ocorrencias[0].tipo}</span>
+                                </div>
+                                <p className="text-[11px] leading-tight" style={{ color: "var(--text2)" }}>{n.entrega.ocorrencias[0].descricao}</p>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
                           <span className="badge badge-PROGRAMADO">Programado</span>
                         )}
                       </td>

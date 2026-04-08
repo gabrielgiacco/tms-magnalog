@@ -48,8 +48,13 @@ export async function PATCH(req: NextRequest) {
   if (!validStatuses.includes(status)) return NextResponse.json({ error: "Status inválido" }, { status: 400 });
 
   const data: any = { status };
-  if (status === "ENTREGUE") data.dataEntrega = new Date();
+  if (status === "ENTREGUE" || status === "FINALIZADO") data.dataEntrega = new Date();
   if (status === "FINALIZADO") data.statusCanhoto = "RECEBIDO";
+  if (status === "OCORRENCIA") {
+    data.rotaId = null;
+    data.motoristaId = null;
+    data.veiculoId = null;
+  }
 
   if (id.startsWith("rota_")) {
     const rotaId = id.replace("rota_", "");
@@ -65,6 +70,7 @@ export async function PATCH(req: NextRequest) {
     if (status === "EM_ROTA") rotaStatus = "EM_ANDAMENTO";
     else if (["ENTREGUE", "FINALIZADO"].includes(status)) rotaStatus = "CONCLUIDA";
     else if (status === "PROGRAMADO") rotaStatus = "PLANEJADA";
+    else if (status === "OCORRENCIA") rotaStatus = "CANCELADA";
 
     if (rotaStatus) {
       await prisma.rota.update({

@@ -47,7 +47,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   data.pesoTotal = queryEntregas.reduce((s: number, e: any) => s + e.pesoTotal, 0);
   data.volumeTotal = queryEntregas.reduce((s: number, e: any) => s + e.volumeTotal, 0);
 
-  // 2. Atualizar a rota
+  // 2. Ao concluir rota, setar dataEntrega em todas as entregas
+  if (body.status === "CONCLUIDA") {
+    await prisma.entrega.updateMany({
+      where: { rotaId: params.id, dataEntrega: null },
+      data: { dataEntrega: new Date(), status: "FINALIZADO", statusCanhoto: "RECEBIDO" },
+    });
+  }
+
+  // 3. Atualizar a rota
   const updatedRota = await prisma.rota.update({
     where: { id: params.id },
     data,

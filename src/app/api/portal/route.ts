@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
             cidade: true,
             notas: { select: { numero: true } },
             motorista: { select: { nome: true } },
+            ocorrencias: { select: { tipo: true, descricao: true, resolvida: true, createdAt: true }, orderBy: { createdAt: "desc" as const } },
           },
         },
       },

@@ -17,7 +17,8 @@ export async function POST(req: NextRequest) {
 
   // Update entrega status
   const data: any = { status: statusNovo };
-  if (statusNovo === "ENTREGUE") data.dataEntrega = new Date();
+  if (statusNovo === "ENTREGUE" || statusNovo === "FINALIZADO") data.dataEntrega = new Date();
+  if (statusNovo === "FINALIZADO") data.statusCanhoto = "RECEBIDO";
 
   const entrega = await prisma.entrega.update({
     where: { id: entregaId },
