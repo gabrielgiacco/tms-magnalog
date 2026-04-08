@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     const statusList = searchParams.getAll("status").filter(Boolean);
     const clienteNomes = searchParams.getAll("clienteNome").filter(Boolean);
     const fornecedores = searchParams.getAll("fornecedor").filter(Boolean);
+    const nfs = searchParams.getAll("nf").filter(Boolean);
     const volumes = searchParams.getAll("volume").filter(Boolean);
     const ufs = searchParams.getAll("uf").filter(Boolean);
     const motoristas = searchParams.getAll("motorista").filter(Boolean);
@@ -88,6 +89,15 @@ export async function GET(req: NextRequest) {
     } else if (fornecedores.length > 1) {
       andConditions.push({
         OR: fornecedores.map((f) => ({ notas: { some: { emitenteRazao: { contains: f, mode: "insensitive" } } } })),
+      });
+    }
+
+    // NF filter (número da nota): multiple values → OR
+    if (nfs.length === 1) {
+      andConditions.push({ notas: { some: { numero: { contains: nfs[0] } } } });
+    } else if (nfs.length > 1) {
+      andConditions.push({
+        OR: nfs.map((nf) => ({ notas: { some: { numero: { contains: nf } } } })),
       });
     }
 
