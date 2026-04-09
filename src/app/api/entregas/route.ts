@@ -174,6 +174,7 @@ export async function GET(req: NextRequest) {
           rota: { select: { id: true, codigo: true } },
           notas: { select: { id: true, numero: true, chaveAcesso: true, valorNota: true, volumes: true, pesoBruto: true, emitenteRazao: true } },
           _count: { select: { notas: true, ocorrencias: true } },
+          qualidade: { select: { id: true } },
         },
       }),
       prisma.entrega.count({ where }),

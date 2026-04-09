@@ -147,6 +147,13 @@ export default function RotasPage() {
                   <div className="flex items-center gap-3">
                     <span className="font-mono text-[11px]" style={{ color: "var(--text3)" }}>{rota.codigo}</span>
                     <StatusBadge status={rota.status} />
+                    {rota.qualidade?.id && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1"
+                        style={{ background: "rgba(234, 179, 8, 0.15)", color: "#ca8a04", border: "1px solid rgba(234, 179, 8, 0.3)" }}
+                        title="Rota tem registro de Qualidade">
+                        ⭐ Avaliada
+                      </span>
+                    )}
                     {rota.status === "PLANEJADA" && (
                       <Button size="sm" variant="ghost" onClick={() => handleStatusChange(rota.id, "EM_ANDAMENTO")}>→ Iniciar</Button>
                     )}

@@ -18,6 +18,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         },
         orderBy: { cidade: "asc" },
       },
+      qualidade: { select: { id: true } },
     },
   });
 

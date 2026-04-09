@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
         select: { id: true, codigo: true, razaoSocial: true, cidade: true, status: true, pesoTotal: true, volumeTotal: true, notas: { select: { numero: true } } },
       },
       _count: { select: { entregas: true } },
+      qualidade: { select: { id: true } },
     },
   });
 

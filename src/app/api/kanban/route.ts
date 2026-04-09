@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
       _count: { select: { notas: true } },
       notas: { select: { numero: true, emitenteRazao: true } },
       rota: { select: { id: true, codigo: true, valorMotorista: true } },
+      qualidade: { select: { id: true } },
     },
   });
 

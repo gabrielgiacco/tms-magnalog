@@ -231,7 +231,16 @@ export default function EntregaDetailPage() {
         <Card>
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-mono uppercase tracking-widest text-slate-500">Fluxo Operacional</span>
-            <StatusBadge status={entrega.status} />
+            <div className="flex items-center gap-2">
+              <StatusBadge status={entrega.status} />
+              {entrega.qualidade?.id && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1"
+                  style={{ background: "rgba(234, 179, 8, 0.15)", color: "#ca8a04", border: "1px solid rgba(234, 179, 8, 0.3)" }}
+                  title="Entrega possui registro de Qualidade">
+                  ⭐ Avaliada
+                </span>
+              )}
+            </div>
           </div>
           {entrega.status === "OCORRENCIA" ? (
              <div className="flex items-center gap-3 p-3 rounded-xl bg-red-50 border border-red-100 flex-wrap">

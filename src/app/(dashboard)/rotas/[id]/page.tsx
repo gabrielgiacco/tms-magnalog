@@ -189,7 +189,16 @@ export default function RotaDetailPage() {
               <div className="text-3xl">{statusInfo?.icon}</div>
               <div>
                 <div className="text-[10px] font-mono uppercase tracking-widest mb-0.5 text-slate-500">Status</div>
-                <StatusBadge status={rota.status} />
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={rota.status} />
+                  {rota.qualidade?.id && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1"
+                      style={{ background: "rgba(234, 179, 8, 0.15)", color: "#ca8a04", border: "1px solid rgba(234, 179, 8, 0.3)" }}
+                      title="Rota possui registro de Qualidade">
+                      ⭐ Avaliada
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="h-10 w-px bg-slate-100" />

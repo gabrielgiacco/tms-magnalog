@@ -94,6 +94,12 @@ function KanbanCard({ entrega, overlay = false }: { entrega: any; overlay?: bool
             : entrega.codigo}
         </span>
         <div className="flex items-center gap-1">
+          {entrega.qualidade?.id && (
+            <span className="text-[10px] items-center text-center justify-center font-bold px-1 py-0.5 rounded"
+              style={{ background: "rgba(234, 179, 8, 0.15)", color: "#ca8a04", title: "Possui registro de Qualidade" }}>
+              ⭐
+            </span>
+          )}
           {entrega.dataAgendada && new Date(entrega.dataAgendada) < new Date() &&
             !["ENTREGUE", "FINALIZADO"].includes(entrega.status) && !entrega.isRota && (
             <span className="text-[9px] px-1.5 py-0.5 rounded font-mono" style={{ background: "rgba(239,68,68,.2)", color: "#ef4444" }}>ATRASADO</span>
@@ -181,6 +187,7 @@ export default function KanbanPage() {
               motorista: e.motorista,
               valorMotorista: e.rota?.valorMotorista || 0,
               entregasCount: 0,
+              qualidade: e.qualidade,
             };
           }
           const r = groupedRotas[e.rotaId];
@@ -188,6 +195,7 @@ export default function KanbanPage() {
           r._count.notas += e._count?.notas || 0;
           r.entregasCount++;
           if (e.notas) r.notas.push(...e.notas);
+          if (e.qualidade) r.qualidade = e.qualidade;
         } else {
           processed.push({
             ...e,

@@ -485,7 +485,18 @@ export default function EntregasPage() {
                             {formatDate(e.dataAgendada)}{atrasada ? " ⚠" : ""}
                           </span>
                         </Td>
-                        <Td><StatusBadge status={e.status} /></Td>
+                        <Td>
+                          <div className="flex flex-col items-start gap-1.5">
+                            <StatusBadge status={e.status} />
+                            {e.qualidade?.id && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1"
+                                style={{ background: "rgba(234, 179, 8, 0.15)", color: "#ca8a04", border: "1px solid rgba(234, 179, 8, 0.3)" }}
+                                title="Entrega possui registro de Qualidade">
+                                ⭐ Avaliada
+                              </span>
+                            )}
+                          </div>
+                        </Td>
                         <Td><span className="text-xs font-mono" style={{ color: "#10b981" }}>{formatCurrency(e.valorFrete)}</span></Td>
                         <Td>
                           <div className="flex items-center gap-1">
