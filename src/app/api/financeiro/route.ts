@@ -22,14 +22,24 @@ export async function GET(req: NextRequest) {
     status: { notIn: ["PROGRAMADO", "EM_SEPARACAO"] } 
   };
   if (pendente) whereEntrega.dataPagamentoSaldo = null;
-  if (search) whereEntrega.motorista = { nome: { contains: search, mode: "insensitive" } };
+  if (search) {
+    whereEntrega.OR = [
+      { motorista: { nome: { contains: search, mode: "insensitive" } } },
+      { notas: { some: { numero: { contains: search } } } }
+    ];
+  }
 
   // Filter for Routes
   const whereRota: any = {
     status: { notIn: ["CANCELADA"] }
   };
   if (pendente) whereRota.dataPagamentoSaldo = null;
-  if (search) whereRota.motorista = { nome: { contains: search, mode: "insensitive" } };
+  if (search) {
+    whereRota.OR = [
+      { motorista: { nome: { contains: search, mode: "insensitive" } } },
+      { entregas: { some: { notas: { some: { numero: { contains: search } } } } } }
+    ];
+  }
 
   const [entregasDiretas, rotas] = await Promise.all([
     prisma.entrega.findMany({
