@@ -33,6 +33,8 @@ export async function POST(req: NextRequest) {
       cnh: body.cnh || null,
       categoriaCnh: body.categoriaCnh || null,
       telefone: body.telefone || null,
+      tipo: body.tipo || "TERCEIRO",
+      valorDiaria: body.valorDiaria ? parseFloat(body.valorDiaria) : null,
     },
   });
 
@@ -51,6 +53,10 @@ export async function PUT(req: NextRequest) {
       data[key] = null;
     }
   });
+
+  if (data.valorDiaria !== undefined && data.valorDiaria !== null) {
+    data.valorDiaria = parseFloat(data.valorDiaria);
+  }
 
   const motorista = await prisma.motorista.update({ where: { id }, data });
   return NextResponse.json(motorista);

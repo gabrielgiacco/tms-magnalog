@@ -5,7 +5,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { Button, Card, Loading, Empty, Modal, Input, Select } from "@/components/ui";
 import { Plus, Edit2, Phone, FileText, User as UserIcon, Truck as TruckIcon } from "lucide-react";
 
-const B_MOT = { nome: "", cpf: "", cnh: "", categoriaCnh: "E", telefone: "" };
+const B_MOT = { nome: "", cpf: "", cnh: "", categoriaCnh: "E", telefone: "", tipo: "TERCEIRO", valorDiaria: "" };
 const B_VEI = { placa: "", tipo: "TRUCK", modelo: "", ano: "", capacidadeKg: "", motoristaId: "" };
 
 const TIPOS: Record<string, { label: string; icon: string; color: string }> = {
@@ -15,6 +15,7 @@ const TIPOS: Record<string, { label: string; icon: string; color: string }> = {
   TRUCK:       { label: "Truck",        icon: "🚛", color: "#f97316" },
   CARRETA:     { label: "Carreta",      icon: "🚛", color: "#ef4444" },
   BITRUCK:     { label: "Bitruck",      icon: "🚛", color: "#10b981" },
+  UTILITARIO:  { label: "Utilitário",   icon: "🚙", color: "#14b8a6" },
 };
 
 export default function FrotaPage() {
@@ -51,7 +52,7 @@ export default function FrotaPage() {
 
   function openEditMot(m: any) {
     setFormType("motorista"); setEditing(m);
-    setFormMot({ nome: m.nome, cpf: m.cpf || "", cnh: m.cnh || "", categoriaCnh: m.categoriaCnh || "E", telefone: m.telefone || "" });
+    setFormMot({ nome: m.nome, cpf: m.cpf || "", cnh: m.cnh || "", categoriaCnh: m.categoriaCnh || "E", telefone: m.telefone || "", tipo: m.tipo || "TERCEIRO", valorDiaria: m.valorDiaria ? String(m.valorDiaria) : "" });
     setShowModal(true);
   }
 
@@ -123,6 +124,9 @@ export default function FrotaPage() {
                     {getInitials(m.nome)}
                   </div>
                   <div className="font-semibold text-sm mb-0.5">{m.nome}</div>
+                  <div className="text-[10px] font-mono mb-1 font-bold" style={{ color: m.tipo === "FROTA" ? "#3b82f6" : m.tipo === "DIARIA" ? "#10b981" : "#f97316" }}>
+                    [{m.tipo}]
+                  </div>
                   <div className="text-[10px] font-mono mb-3" style={{ color: "var(--text3)" }}>CNH {m.categoriaCnh || "—"}</div>
                   <div className="space-y-1.5 mb-4 text-xs" style={{ color: "var(--text2)" }}>
                     {m.telefone && <div>{m.telefone}</div>}
@@ -174,6 +178,16 @@ export default function FrotaPage() {
               {["A", "B", "AB", "C", "D", "E", "AC", "AD", "AE"].map((c) => <option key={c} value={c}>Categoria {c}</option>)}
             </Select>
             <Input label="Telefone" value={formMot.telefone} onChange={(e) => setM("telefone", e.target.value)} placeholder="(11) 99999-9999" />
+            
+            <Select label="Tipo de Contrato" value={formMot.tipo} onChange={(e) => setM("tipo", e.target.value)}>
+              <option value="TERCEIRO">Frete a Combinar (Terceiro)</option>
+              <option value="FROTA">Salário Fixo (Frota Própria - Custo R$0)</option>
+              <option value="DIARIA">Diária Fixa</option>
+            </Select>
+
+            {formMot.tipo === "DIARIA" && (
+              <Input label="Valor da Diária (R$)" type="number" value={formMot.valorDiaria} onChange={(e) => setM("valorDiaria", e.target.value)} placeholder="200.00" />
+            )}
           </div>
         ) : (
           <div className="space-y-4">

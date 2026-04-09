@@ -123,6 +123,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (data.dataEntrega) data.dataEntrega = new Date(data.dataEntrega);
   if (data.dataPagamento) data.dataPagamento = new Date(data.dataPagamento);
 
+  if (data.motoristaId) {
+    // Apenas recalcula se não vier explícito na request
+    if (valorFrete === undefined && body.valorMotorista === undefined) {
+      const moto = await prisma.motorista.findUnique({ where: { id: data.motoristaId }, select: { tipo: true, valorDiaria: true } });
+      if (moto) {
+        if (moto.tipo === "FROTA") data.valorMotorista = 0;
+        else if (moto.tipo === "DIARIA") data.valorMotorista = moto.valorDiaria || 0;
+      }
+    }
+  }
+
   // Calcular saldo automaticamente se frete ou adiantamento mudou
   if (valorFrete !== undefined || adiantamento !== undefined) {
     const current = await prisma.entrega.findUnique({ where: { id: params.id } });

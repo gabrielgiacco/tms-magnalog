@@ -61,6 +61,16 @@ export async function POST(req: NextRequest) {
       volumeTotal = entregas.reduce((s: number, e: any) => s + (e.volumeTotal || 0), 0);
     }
 
+    let resolvedValorMotorista = parseFloat(String(body.valorMotorista).replace(",", ".")) || 0;
+    
+    if ((!body.valorMotorista || resolvedValorMotorista === 0) && body.motoristaId) {
+      const moto = await prisma.motorista.findUnique({ where: { id: body.motoristaId }, select: { tipo: true, valorDiaria: true } });
+      if (moto) {
+        if (moto.tipo === "FROTA") resolvedValorMotorista = 0;
+        else if (moto.tipo === "DIARIA") resolvedValorMotorista = moto.valorDiaria || 0;
+      }
+    }
+
     const rota = await prisma.rota.create({
       data: {
         codigo,
@@ -69,7 +79,7 @@ export async function POST(req: NextRequest) {
         veiculoId: body.veiculoId || null,
         pesoTotal,
         volumeTotal: Math.round(volumeTotal), // Garante que seja Int
-        valorMotorista: parseFloat(String(body.valorMotorista).replace(",", ".")) || 0,
+        valorMotorista: resolvedValorMotorista,
         observacoes: body.observacoes,
         status: "PLANEJADA",
       },

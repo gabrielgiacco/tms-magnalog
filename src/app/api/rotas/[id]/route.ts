@@ -33,7 +33,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const data: any = {};
 
   if (body.status) data.status = body.status;
-  if (body.motoristaId !== undefined) data.motoristaId = body.motoristaId === "" ? null : body.motoristaId;
+  if (body.motoristaId !== undefined) {
+    data.motoristaId = body.motoristaId === "" ? null : body.motoristaId;
+    if (data.motoristaId && body.valorMotorista === undefined) {
+      const moto = await prisma.motorista.findUnique({ where: { id: data.motoristaId }, select: { tipo: true, valorDiaria: true } });
+      if (moto) {
+        if (moto.tipo === "FROTA") data.valorMotorista = 0;
+        else if (moto.tipo === "DIARIA") data.valorMotorista = moto.valorDiaria || 0;
+      }
+    }
+  }
   if (body.veiculoId !== undefined) data.veiculoId = body.veiculoId === "" ? null : body.veiculoId;
   if (body.data) data.data = new Date(body.data);
   if (body.valorMotorista !== undefined) data.valorMotorista = parseFloat(body.valorMotorista) || 0;

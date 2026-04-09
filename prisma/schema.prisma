@@ -75,6 +75,12 @@ model FornecedorAutorizado {
   @@unique([userId, cnpjEmitente])
 }
 
+enum TipoMotorista {
+  FROTA
+  TERCEIRO
+  DIARIA
+}
+
 enum TipoVeiculo {
   VUC
   TRES_QUARTOS
@@ -82,6 +88,7 @@ enum TipoVeiculo {
   TRUCK
   CARRETA
   BITRUCK
+  UTILITARIO
 }
 
 model Veiculo {
@@ -108,6 +115,8 @@ model Motorista {
   categoriaCnh String?
   telefone     String?
   ativo        Boolean   @default(true)
+  tipo         TipoMotorista @default(TERCEIRO)
+  valorDiaria  Float?    // Usado se tipo == DIARIA
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   veiculos     Veiculo[]
