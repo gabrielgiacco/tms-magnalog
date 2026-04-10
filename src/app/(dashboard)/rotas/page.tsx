@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button, Card, Loading, Empty, StatusBadge, Modal, Input, Select, ComboboxMotorista } from "@/components/ui";
 import { formatWeight, formatDate, formatCurrency } from "@/lib/utils";
-import { Plus, RefreshCw, ChevronDown, ChevronUp, Truck, User, Package, Calendar, Route, Search, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, ChevronDown, ChevronUp, Truck, User, Package, Calendar, Route, Search, Trash2, Filter } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 export default function RotasPage() {
@@ -24,12 +24,19 @@ export default function RotasPage() {
   const [form, setForm] = useState({ data: "", motoristaId: "", veiculoId: "", valorMotorista: "", observacoes: "", entregaIds: [] as string[] });
   const [searchEntrega, setSearchEntrega] = useState("");
 
+  // Filters for route list
+  const [filterNF, setFilterNF] = useState("");
+  const [filterMotorista, setFilterMotorista] = useState("");
+
   const fetchRotas = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/rotas");
+    const params = new URLSearchParams();
+    if (filterNF) params.set("nf", filterNF);
+    if (filterMotorista) params.set("motorista", filterMotorista);
+    const res = await fetch(`/api/rotas?${params}`);
     setRotas(await res.json());
     setLoading(false);
-  }, []);
+  }, [filterNF, filterMotorista]);
 
   useEffect(() => { fetchRotas(); }, [fetchRotas]);
 
@@ -138,7 +145,46 @@ export default function RotasPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {loading ? <Loading /> : rotas.length === 0 ? <Empty icon="🗺️" text="Nenhuma rota criada" /> : (
+        {/* Route Filters */}
+        <Card className="p-4">
+          <div className="flex gap-3 items-center flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase" style={{ color: "var(--text3)" }}>
+              <Filter size={14} />
+              Filtros:
+            </div>
+            <div className="relative flex-1 min-w-[180px]">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
+              <input
+                value={filterNF}
+                onChange={(e) => setFilterNF(e.target.value)}
+                placeholder="Buscar por NF..."
+                className="w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}
+              />
+            </div>
+            <div className="relative flex-1 min-w-[180px]">
+              <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
+              <input
+                value={filterMotorista}
+                onChange={(e) => setFilterMotorista(e.target.value)}
+                placeholder="Buscar por motorista..."
+                className="w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}
+              />
+            </div>
+            {(filterNF || filterMotorista) && (
+              <button
+                onClick={() => { setFilterNF(""); setFilterMotorista(""); }}
+                className="text-[10px] font-bold text-rose-500 hover:text-rose-600 px-2 py-1.5 rounded-md hover:bg-rose-50 transition-colors"
+              >
+                ✕ Limpar
+              </button>
+            )}
+            <Button variant="ghost" size="sm" onClick={fetchRotas}><RefreshCw size={13} /> Atualizar</Button>
+          </div>
+        </Card>
+
+        {loading ? <Loading /> : rotas.length === 0 ? <Empty icon="🗺️" text="Nenhuma rota encontrada" /> : (
           rotas.map((rota) => (
             <Card key={rota.id} className="p-0 overflow-hidden">
               {/* Header */}

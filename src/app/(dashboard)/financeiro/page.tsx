@@ -4,7 +4,31 @@ import toast from "react-hot-toast";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button, Card, Loading, Empty, StatusBadge, Modal, Input, Table, Th, Td, Tr, Select } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { RefreshCw, Edit2, Search, DollarSign, Clock, CheckCircle, Download, FileSignature, AlertCircle, HandCoins } from "lucide-react";
+import { RefreshCw, Edit2, Search, DollarSign, Clock, CheckCircle, Download, FileSignature, AlertCircle, HandCoins, CalendarDays } from "lucide-react";
+
+type PeriodoPreset = "todos" | "semanal" | "quinzenal" | "mensal";
+
+function getPresetDates(preset: PeriodoPreset): { inicio: string; fim: string } {
+  const hoje = new Date();
+  const fim = hoje.toISOString().slice(0, 10);
+  let inicio = "";
+
+  if (preset === "semanal") {
+    const d = new Date(hoje);
+    d.setDate(d.getDate() - 7);
+    inicio = d.toISOString().slice(0, 10);
+  } else if (preset === "quinzenal") {
+    const d = new Date(hoje);
+    d.setDate(d.getDate() - 15);
+    inicio = d.toISOString().slice(0, 10);
+  } else if (preset === "mensal") {
+    const d = new Date(hoje);
+    d.setMonth(d.getMonth() - 1);
+    inicio = d.toISOString().slice(0, 10);
+  }
+
+  return { inicio, fim };
+}
 
 export default function FinanceiroTerceirosPage() {
   const [entregas, setEntregas] = useState<any[]>([]);
@@ -15,6 +39,11 @@ export default function FinanceiroTerceirosPage() {
   const [pages, setPages] = useState(1);
   const [search, setSearch] = useState("");
   const [pendente, setPendente] = useState(true);
+
+  // Date filters
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
+  const [periodoAtivo, setPeriodoAtivo] = useState<PeriodoPreset>("todos");
   
   const [showEdit, setShowEdit] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -26,6 +55,8 @@ export default function FinanceiroTerceirosPage() {
     const params = new URLSearchParams({ page: String(page), limit: "50" });
     if (search) params.set("cliente", search);
     if (pendente) params.set("pendente", "true");
+    if (dataInicio) params.set("dataInicio", dataInicio);
+    if (dataFim) params.set("dataFim", dataFim);
     const res = await fetch(`/api/financeiro?${params}`);
     const data = await res.json();
     setEntregas(data.entregas || []);
@@ -33,9 +64,29 @@ export default function FinanceiroTerceirosPage() {
     setTotal(data.total || 0);
     setPages(data.pages || 1);
     setLoading(false);
-  }, [page, search, pendente]);
+  }, [page, search, pendente, dataInicio, dataFim]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  function handlePresetChange(preset: PeriodoPreset) {
+    setPeriodoAtivo(preset);
+    if (preset === "todos") {
+      setDataInicio("");
+      setDataFim("");
+    } else {
+      const { inicio, fim } = getPresetDates(preset);
+      setDataInicio(inicio);
+      setDataFim(fim);
+    }
+    setPage(1);
+  }
+
+  function handleDateChange(field: "inicio" | "fim", value: string) {
+    setPeriodoAtivo("todos"); // Clear preset when using custom dates
+    if (field === "inicio") setDataInicio(value);
+    else setDataFim(value);
+    setPage(1);
+  }
 
   function openEdit(e: any) {
     setEditingId(e.id);
@@ -86,6 +137,27 @@ export default function FinanceiroTerceirosPage() {
     (parseFloat(editForm.adiantamentoMotorista)||0) - 
     (parseFloat(editForm.valorSaida)||0) - 
     (parseFloat(editForm.descontosMotorista)||0);
+
+  // Helper: display NF column correctly
+  // For routes: show route code (e.g. RTA-0018)
+  // For direct deliveries: show NF numbers
+  function getIdentificador(e: any) {
+    if (e.isRota) {
+      return e.codigo; // Always show route code for routes
+    }
+    // Direct delivery: show NF numbers if available, otherwise the entrega code
+    if (e.notas && e.notas.length > 0) {
+      return e.notas.map((n: any) => n.numero).join(", ");
+    }
+    return e.codigo;
+  }
+
+  const presetButtons: { label: string; value: PeriodoPreset }[] = [
+    { label: "Todos", value: "todos" },
+    { label: "Semanal", value: "semanal" },
+    { label: "Quinzenal", value: "quinzenal" },
+    { label: "Mensal", value: "mensal" },
+  ];
 
   return (
     <>
@@ -153,7 +225,7 @@ export default function FinanceiroTerceirosPage() {
         </div>
 
         {/* Filters */}
-        <Card className="p-4">
+        <Card className="p-4 space-y-3">
           <div className="flex gap-3 items-center flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
@@ -169,6 +241,63 @@ export default function FinanceiroTerceirosPage() {
             </label>
             <Button variant="ghost" size="sm" onClick={fetchData}><RefreshCw size={13} /> Atualizar</Button>
           </div>
+
+          {/* Date range + period presets */}
+          <div className="flex gap-3 items-center flex-wrap pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase" style={{ color: "var(--text3)" }}>
+              <CalendarDays size={14} />
+              Período:
+            </div>
+
+            {/* Preset buttons */}
+            <div className="flex items-center rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+              {presetButtons.map((btn) => (
+                <button
+                  key={btn.value}
+                  onClick={() => handlePresetChange(btn.value)}
+                  className="px-3 py-1.5 text-xs font-bold transition-all"
+                  style={{
+                    background: periodoAtivo === btn.value ? "var(--accent)" : "transparent",
+                    color: periodoAtivo === btn.value ? "#fff" : "var(--text2)",
+                    borderRight: "1px solid var(--border)",
+                  }}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 ml-auto">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-mono uppercase" style={{ color: "var(--text3)" }}>De:</span>
+                <input
+                  type="date"
+                  value={dataInicio}
+                  onChange={(e) => handleDateChange("inicio", e.target.value)}
+                  className="px-2 py-1.5 rounded-lg text-xs outline-none"
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-mono uppercase" style={{ color: "var(--text3)" }}>Até:</span>
+                <input
+                  type="date"
+                  value={dataFim}
+                  onChange={(e) => handleDateChange("fim", e.target.value)}
+                  className="px-2 py-1.5 rounded-lg text-xs outline-none"
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}
+                />
+              </div>
+              {(dataInicio || dataFim) && (
+                <button
+                  onClick={() => { handlePresetChange("todos"); }}
+                  className="text-[10px] font-bold text-rose-500 hover:text-rose-600 px-2 py-1 rounded-md hover:bg-rose-50 transition-colors"
+                >
+                  ✕ Limpar
+                </button>
+              )}
+            </div>
+          </div>
         </Card>
 
         {/* Table */}
@@ -177,7 +306,8 @@ export default function FinanceiroTerceirosPage() {
             <Table>
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <Th>NF</Th><Th>Motorista</Th>
+                  <Th>NF / Rota</Th><Th>Motorista</Th>
+                  <Th>Data Frete</Th>
                   <Th>Canhoto</Th>
                   <Th className="text-right">Frete Combinado</Th>
                   <Th className="text-right">Vales / Saída</Th>
@@ -196,13 +326,18 @@ export default function FinanceiroTerceirosPage() {
                           {e.isRota ? "🛣️ Rota" : "📄 Direta"}
                         </span>
                         <span className="font-mono text-xs font-bold text-gray-700">
-                          {e.notas && e.notas.length > 0 ? e.notas.map((n: any) => n.numero).join(", ") : e.codigo}
+                          {getIdentificador(e)}
                         </span>
                       </div>
                     </Td>
                     <Td>
                       <div className="font-bold text-sm text-gray-800 uppercase">{e.motorista?.nome || "Motorista não vinculado"}</div>
                       <div className="text-[10px] text-gray-400 font-mono">Rota para: {e.cidade}</div>
+                    </Td>
+                    <Td>
+                      <span className="font-mono text-[11px] font-semibold" style={{ color: "var(--text2)" }}>
+                        {formatDate(e.dataEntrega || e.dataAgendada) || "-"}
+                      </span>
                     </Td>
                     <Td>
                       <StatusBadge status={e.statusCanhoto || "PENDENTE"} />

@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const pendente = searchParams.get("pendente") === "true";
   const search = searchParams.get("cliente");
+  const dataInicio = searchParams.get("dataInicio");
+  const dataFim = searchParams.get("dataFim");
 
   // Filter for Direct Deliveries (no rota)
   const whereEntrega: any = { 
@@ -22,6 +24,15 @@ export async function GET(req: NextRequest) {
     status: { notIn: ["PROGRAMADO", "EM_SEPARACAO"] } 
   };
   if (pendente) whereEntrega.dataPagamentoSaldo = null;
+  if (dataInicio || dataFim) {
+    whereEntrega.createdAt = {};
+    if (dataInicio) whereEntrega.createdAt.gte = new Date(dataInicio);
+    if (dataFim) {
+      const fim = new Date(dataFim);
+      fim.setHours(23, 59, 59, 999);
+      whereEntrega.createdAt.lte = fim;
+    }
+  }
   if (search) {
     whereEntrega.OR = [
       { motorista: { nome: { contains: search, mode: "insensitive" } } },
@@ -34,6 +45,15 @@ export async function GET(req: NextRequest) {
     status: { notIn: ["CANCELADA"] }
   };
   if (pendente) whereRota.dataPagamentoSaldo = null;
+  if (dataInicio || dataFim) {
+    whereRota.createdAt = {};
+    if (dataInicio) whereRota.createdAt.gte = new Date(dataInicio);
+    if (dataFim) {
+      const fim = new Date(dataFim);
+      fim.setHours(23, 59, 59, 999);
+      whereRota.createdAt.lte = fim;
+    }
+  }
   if (search) {
     whereRota.OR = [
       { motorista: { nome: { contains: search, mode: "insensitive" } } },
@@ -49,7 +69,7 @@ export async function GET(req: NextRequest) {
         id: true, codigo: true, razaoSocial: true, cidade: true, status: true,
         valorMotorista: true, valorSaida: true, adiantamentoMotorista: true, dataAdiantamento: true,
         descontosMotorista: true, saldoMotorista: true, dataPagamentoSaldo: true, statusCanhoto: true,
-        dataEntrega: true, motorista: { select: { nome: true } },
+        dataEntrega: true, dataAgendada: true, motorista: { select: { nome: true } },
         notas: { select: { numero: true } },
         _count: { select: { notas: true } },
         createdAt: true,
@@ -89,6 +109,7 @@ export async function GET(req: NextRequest) {
       isRota: true,
       notas: r.entregas.flatMap((e: any) => e.notas),
       _count: { notas: r.entregas.length },
+      dataEntrega: r.data,
       createdAt: r.createdAt,
     }))
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

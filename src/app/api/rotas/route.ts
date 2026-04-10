@@ -10,9 +10,17 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
+  const nfFilter = searchParams.get("nf");
+  const motoristaFilter = searchParams.get("motorista");
 
   const where: any = {};
   if (status) where.status = status;
+  if (nfFilter) {
+    where.entregas = { some: { notas: { some: { numero: { contains: nfFilter, mode: "insensitive" } } } } };
+  }
+  if (motoristaFilter) {
+    where.motorista = { nome: { contains: motoristaFilter, mode: "insensitive" } };
+  }
 
   const rotas = await prisma.rota.findMany({
     where,
