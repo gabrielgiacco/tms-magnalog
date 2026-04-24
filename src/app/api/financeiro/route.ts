@@ -69,7 +69,8 @@ export async function GET(req: NextRequest) {
         id: true, codigo: true, razaoSocial: true, cidade: true, status: true,
         valorMotorista: true, valorSaida: true, adiantamentoMotorista: true, dataAdiantamento: true,
         descontosMotorista: true, saldoMotorista: true, dataPagamentoSaldo: true, statusCanhoto: true,
-        dataEntrega: true, dataAgendada: true, motorista: { select: { nome: true } },
+        dataEntrega: true, dataAgendada: true,
+        motoristaId: true, motorista: { select: { nome: true, tipo: true, valorDiaria: true } },
         notas: { select: { numero: true } },
         _count: { select: { notas: true } },
         createdAt: true,
@@ -79,9 +80,9 @@ export async function GET(req: NextRequest) {
       where: whereRota,
       orderBy: { createdAt: "desc" },
       include: {
-        motorista: { select: { nome: true } },
+        motorista: { select: { nome: true, tipo: true, valorDiaria: true } },
         entregas: {
-          select: { id: true, notas: { select: { numero: true } } }
+          select: { id: true, codigo: true, razaoSocial: true, notas: { select: { numero: true } } }
         },
         _count: { select: { entregas: true } }
       }
@@ -90,7 +91,13 @@ export async function GET(req: NextRequest) {
 
   // Combine into a single list
   const viagens: any[] = [
-    ...entregasDiretas.map(e => ({ ...e, isRota: false })),
+    ...entregasDiretas.map((e: any) => ({
+      ...e,
+      isRota: false,
+      motoristaTipo: e.motorista?.tipo || null,
+      motoristaValorDiaria: e.motorista?.valorDiaria || 0,
+      dataRef: e.dataAgendada || e.dataEntrega || e.createdAt,
+    })),
     ...rotas.map((r: any) => ({
       id: r.id,
       codigo: r.codigo,
@@ -105,22 +112,71 @@ export async function GET(req: NextRequest) {
       saldoMotorista: r.saldoMotorista || 0,
       dataPagamentoSaldo: r.dataPagamentoSaldo,
       statusCanhoto: r.statusCanhoto,
+      motoristaId: r.motoristaId,
       motorista: r.motorista,
+      motoristaTipo: r.motorista?.tipo || null,
+      motoristaValorDiaria: r.motorista?.valorDiaria || 0,
       isRota: true,
+      rotaEntregas: r.entregas.map((e: any) => ({ codigo: e.codigo, razaoSocial: e.razaoSocial })),
       notas: r.entregas.flatMap((e: any) => e.notas),
       _count: { notas: r.entregas.length },
       dataEntrega: r.data,
+      dataRef: r.data || r.createdAt,
       createdAt: r.createdAt,
     }))
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  ].sort((a, b) => {
+    const dateA = new Date(a.dataEntrega || a.createdAt).getTime();
+    const dateB = new Date(b.dataEntrega || b.createdAt).getTime();
+    return dateB - dateA;
+  });
 
-  // Aggregate totals
-  const totais = viagens.reduce((acc, v) => ({
+  // Agrupar DIARIA: apenas uma diária por motorista por dia
+  // Mantém todas as viagens visíveis, mas ajusta o valorMotorista das extras para 0
+  const diariaVistos = new Map<string, string>(); // chave "motoristaId_YYYY-MM-DD" → codigo da viagem principal
+  for (const v of viagens) {
+    if (v.motoristaTipo === "DIARIA" && v.motoristaId) {
+      const dateStr = v.dataRef ? new Date(v.dataRef).toISOString().slice(0, 10) : "sem-data";
+      const key = `${v.motoristaId}_${dateStr}`;
+      if (!diariaVistos.has(key)) {
+        // Primeira viagem deste motorista nesta data → mantém o valor da diária
+        diariaVistos.set(key, v.codigo);
+        v.valorMotorista = v.motoristaValorDiaria || v.valorMotorista;
+        v.saldoMotorista = v.valorMotorista - (v.adiantamentoMotorista || 0) - (v.valorSaida || 0) - (v.descontosMotorista || 0);
+        v.isDiariaPrincipal = true;
+      } else {
+        // Viagem adicional do mesmo dia → valor motorista = 0 (diária já cobrada)
+        v.valorMotoristaOriginal = v.valorMotorista;
+        v.valorMotorista = 0;
+        v.saldoMotorista = -(v.adiantamentoMotorista || 0) - (v.valorSaida || 0) - (v.descontosMotorista || 0);
+        v.isDiariaExtra = true;
+        v.diariaCobradaEm = diariaVistos.get(key);
+      }
+      v.diariaData = dateStr;
+    }
+  }
+
+  // Contar saídas (rotas) e entregas diretas separadamente para cada diária
+  for (const v of viagens) {
+    if (v.isDiariaPrincipal && v.motoristaId) {
+      const dateStr = v.diariaData;
+      const mesmodia = viagens.filter((x: any) => x.motoristaId === v.motoristaId && x.diariaData === dateStr);
+      const rotas = mesmodia.filter((x: any) => x.isRota);
+      const diretas = mesmodia.filter((x: any) => !x.isRota);
+      // Saídas = quantidade de rotas (cada rota = 1 saída do caminhão)
+      // Se não houver rotas, conta as entregas diretas como saídas
+      v.diariaQtdSaidas = rotas.length > 0 ? rotas.length : diretas.length;
+      v.diariaQtdDiretas = diretas.length;
+      v.diariaQtdRotas = rotas.length;
+    }
+  }
+
+  // Aggregate totals (com valores já ajustados)
+  const totais = viagens.reduce((acc: any, v: any) => ({
     valorMotorista: (acc.valorMotorista || 0) + v.valorMotorista,
-    adiantamentoMotorista: (acc.adiantamentoMotorista || 0) + v.adiantamentoMotorista,
+    adiantamentoMotorista: (acc.adiantamentoMotorista || 0) + (v.adiantamentoMotorista || 0),
     saldoMotorista: (acc.saldoMotorista || 0) + v.saldoMotorista,
-    valorSaida: (acc.valorSaida || 0) + v.valorSaida,
-    descontosMotorista: (acc.descontosMotorista || 0) + v.descontosMotorista,
+    valorSaida: (acc.valorSaida || 0) + (v.valorSaida || 0),
+    descontosMotorista: (acc.descontosMotorista || 0) + (v.descontosMotorista || 0),
   }), {});
 
   return NextResponse.json({

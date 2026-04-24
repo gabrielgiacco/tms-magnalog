@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button, Card, Loading, StatusBadge, Modal, Input, Select, Textarea, ComboboxMotorista } from "@/components/ui";
 import { formatCurrency, formatDate, formatWeight, formatCNPJ } from "@/lib/utils";
-import { Copy, FileText, History, Package, MapPin, Truck, ChevronLeft, Calendar, User, Clock, CheckCircle2, AlertCircle, Trash2, ShieldCheck, DollarSign, Scissors, ChevronDown, ChevronUp, Box, Info, Weight, Layers, AlertTriangle, Printer, Maximize2, Minimize2 } from "lucide-react";
+import { Copy, FileText, History, Package, MapPin, Truck, ChevronLeft, Calendar, User, Clock, CheckCircle2, AlertCircle, Trash2, ShieldCheck, DollarSign, Scissors, ChevronDown, ChevronUp, Box, Info, Weight, Layers, AlertTriangle, Printer, Maximize2, Minimize2, Plus, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { QualityScoring } from "@/components/quality/QualityScoring";
 import { DanfeViewer } from "@/components/danfe/DanfeViewer";
@@ -25,7 +25,9 @@ export default function EntregaDetailPage() {
   const id = params!.id as string;
   const router = useRouter();
   const { data: session } = useSession();
-  const isAdmin = (session?.user as any)?.role === "ADMIN";
+  const userRole = (session?.user as any)?.role;
+  const isAdmin = userRole === "ADMIN";
+  const isReadOnly = userRole === "CONFERENTE";
 
   const [entrega, setEntrega] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -41,6 +43,13 @@ export default function EntregaDetailPage() {
   const [separando, setSeparando] = useState(false);
   const [danfeModal, setDanfeModal] = useState<{ open: boolean; xml: string | null; loading: boolean; fullscreen: boolean }>({ open: false, xml: null, loading: false, fullscreen: false });
   const [showQualityPrompt, setShowQualityPrompt] = useState(false);
+
+  // Add NFs modal
+  const [showAddNF, setShowAddNF] = useState(false);
+  const [notasDisp, setNotasDisp] = useState<any[]>([]);
+  const [selectedNFIds, setSelectedNFIds] = useState<string[]>([]);
+  const [searchNF, setSearchNF] = useState("");
+  const [addingNFs, setAddingNFs] = useState(false);
 
   useEffect(() => {
     fetch(`/api/entregas/${id}`).then((r) => r.json()).then((d) => { 
@@ -117,6 +126,10 @@ export default function EntregaDetailPage() {
       setEntrega(updated);
       setShowEdit(false);
       toast.success("Entrega atualizada");
+
+      if (editForm.status === "FINALIZADO" && entrega.status !== "FINALIZADO") {
+        setShowQualityPrompt(true);
+      }
     } catch { toast.error("Erro ao salvar"); }
     finally { setSaving(false); }
   }
@@ -198,6 +211,70 @@ export default function EntregaDetailPage() {
     }
   }
 
+  // Add NFs handlers
+  function fetchNotasDisp(query?: string) {
+    const q = (query ?? "").trim();
+    const url = q
+      ? `/api/notas?q=${encodeURIComponent(q)}&limit=500`
+      : `/api/notas?semEntrega=true&limit=500`;
+    fetch(url)
+      .then(r => r.json())
+      .then(d => {
+        const list = (d.notas || []).filter((n: any) => n.entregaId !== id);
+        setNotasDisp(list);
+      });
+  }
+
+  function openAddNFModal() {
+    setShowAddNF(true);
+    setSelectedNFIds([]);
+    setSearchNF("");
+    fetchNotasDisp();
+  }
+
+  useEffect(() => {
+    if (!showAddNF) return;
+    const t = setTimeout(() => fetchNotasDisp(searchNF), 300);
+    return () => clearTimeout(t);
+  }, [searchNF, showAddNF]);
+
+  const filteredNotasDisp = notasDisp;
+
+  function toggleNF(nfId: string) {
+    setSelectedNFIds(prev => prev.includes(nfId) ? prev.filter(x => x !== nfId) : [...prev, nfId]);
+  }
+
+  function toggleAllNFs() {
+    const allSelected = filteredNotasDisp.every(n => selectedNFIds.includes(n.id));
+    if (allSelected) {
+      setSelectedNFIds(prev => prev.filter(pid => !filteredNotasDisp.some(n => n.id === pid)));
+    } else {
+      setSelectedNFIds(prev => Array.from(new Set([...prev, ...filteredNotasDisp.map(n => n.id)])));
+    }
+  }
+
+  async function handleAddNFs() {
+    if (selectedNFIds.length === 0) return;
+    setAddingNFs(true);
+    try {
+      const res = await fetch("/api/notas", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedNFIds, entregaId: id }),
+      });
+      if (!res.ok) throw new Error("Erro ao vincular notas");
+      toast.success(`${selectedNFIds.length} nota(s) vinculada(s)`);
+      setShowAddNF(false);
+      setSelectedNFIds([]);
+      // Reload entrega
+      const updated = await fetch(`/api/entregas/${id}`).then(r => r.json());
+      setEntrega(updated);
+      setEditForm(formatForEdit(updated));
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao vincular notas");
+    } finally { setAddingNFs(false); }
+  }
+
   const set = (k: string, v: string) => setEditForm((f: any) => ({ ...f, [k]: v }));
   const currentIdx = STATUS_FLOW.findIndex((s) => s.key === entrega?.status);
 
@@ -214,10 +291,12 @@ export default function EntregaDetailPage() {
             <Button variant="ghost" size="sm" onClick={() => router.back()}>
               <ChevronLeft size={14} /> Voltar
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => { setEditForm(formatForEdit(entrega)); setShowEdit(true); }}>
-              <Copy size={14} /> Editar
-            </Button>
-            {entrega.status !== "OCORRENCIA" && entrega.status !== "FINALIZADO" && (
+            {!isReadOnly && (
+              <Button variant="ghost" size="sm" onClick={() => { setEditForm(formatForEdit(entrega)); setShowEdit(true); }}>
+                <Copy size={14} /> Editar
+              </Button>
+            )}
+            {!isReadOnly && entrega.status !== "OCORRENCIA" && entrega.status !== "FINALIZADO" && (
               <Button variant="danger" size="sm" onClick={() => setShowOcorrencia(true)}>
                 <AlertCircle size={14} /> Ocorrência
               </Button>
@@ -245,15 +324,17 @@ export default function EntregaDetailPage() {
           {entrega.status === "OCORRENCIA" ? (
              <div className="flex items-center gap-3 p-3 rounded-xl bg-red-50 border border-red-100 flex-wrap">
                <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
-               <span className="text-sm text-red-600 flex-1">Esta entrega possui ocorrência registrada. Escolha uma ação:</span>
-               <div className="flex gap-2">
-                 <Button size="sm" variant="outline" className="border-red-200 text-red-700 bg-white hover:bg-red-50" onClick={handleReentrega} disabled={saving}>
-                   Gerar Reentrega (Duplicar)
-                 </Button>
-                 <Button size="sm" onClick={() => handleStatusChange("EM_ROTA")} disabled={saving}>
-                   Retomar como Em Rota
-                 </Button>
-               </div>
+               <span className="text-sm text-red-600 flex-1">Esta entrega possui ocorrência registrada.{!isReadOnly && " Escolha uma ação:"}</span>
+               {!isReadOnly && (
+                 <div className="flex gap-2">
+                   <Button size="sm" variant="outline" className="border-red-200 text-red-700 bg-white hover:bg-red-50" onClick={handleReentrega} disabled={saving}>
+                     Gerar Reentrega (Duplicar)
+                   </Button>
+                   <Button size="sm" onClick={() => handleStatusChange("EM_ROTA")} disabled={saving}>
+                     Retomar como Em Rota
+                   </Button>
+                 </div>
+               )}
              </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -265,11 +346,11 @@ export default function EntregaDetailPage() {
                   <div key={s.key} className="flex items-center gap-2 flex-1">
                     <div className="flex flex-col items-center gap-1 flex-1">
                       <button
-                        onClick={() => next && handleStatusChange(s.key)}
-                        disabled={saving || (!next && !current)}
+                        onClick={() => !isReadOnly && next && handleStatusChange(s.key)}
+                        disabled={isReadOnly || saving || (!next && !current)}
                         className={`w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all
                           ${current ? "ring-2 ring-orange-400 scale-110" : ""}
-                          ${next ? "cursor-pointer hover:scale-110" : done ? "" : "opacity-30 cursor-not-allowed"}
+                          ${!isReadOnly && next ? "cursor-pointer hover:scale-110" : done ? "" : "opacity-30 cursor-not-allowed"}
                         `}
                         style={{
                           background: done || current ? "var(--accent)" : "var(--surface2)",
@@ -361,17 +442,27 @@ export default function EntregaDetailPage() {
                     <span className="text-[10px] font-bold">RECEITA CLIENTE</span>
                     <span className="font-mono text-xs">{formatCurrency(entrega.valorFrete)}</span>
                   </div>
-                  {entrega.valorArmazenagem > 0 && (
-                    <div className="flex justify-between items-center bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg border border-amber-100">
-                      <span className="text-[10px] font-bold">ARMAZENAGEM</span>
-                      <span className="font-mono text-xs">{formatCurrency(entrega.valorArmazenagem)}</span>
-                    </div>
-                  )}
-                  {entrega.diasArmazenagem > 0 && (
+                  {entrega.armazenagemCalc ? (
+                    <>
+                      <div className="flex justify-between items-center bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg border border-amber-100">
+                        <span className="text-[10px] font-bold">ARMAZENAGEM {entrega.armazenagemCalc.emAberto ? "(em curso)" : ""}</span>
+                        <span className="font-mono text-xs">{formatCurrency(entrega.armazenagemCalc.valorTotal)}</span>
+                      </div>
+                      <div className="text-[10px]" style={{ color: "var(--text3)" }}>
+                        {entrega.armazenagemCalc.diasDecorridos} dia(s) · {entrega.quantidadePaletes || 0} palete(s)
+                      </div>
+                      {entrega.armazenagemCalc.fornecedores.map((f: any) => (
+                        <div key={f.cnpjFornecedor} className="text-[9px] font-mono pl-2 border-l-2 border-amber-200" style={{ color: "var(--text3)" }}>
+                          <span className="font-bold" style={{ color: "var(--text2)" }}>{f.nomeFornecedor}</span>
+                          {" · "}{f.diasFree} dias free · {formatCurrency(f.valorPaleteDia)}/pal/dia · {f.diasCobraveis} cobrável(is) → <span className="text-amber-700 font-bold">{formatCurrency(f.valorCalculado)}</span>
+                        </div>
+                      ))}
+                    </>
+                  ) : entrega.quantidadePaletes > 0 ? (
                     <div className="text-[10px]" style={{ color: "var(--text3)" }}>
-                      {entrega.diasArmazenagem} dia(s) &bull; {entrega.quantidadePaletes || 0} palete(s)
+                      {entrega.quantidadePaletes} palete(s) · nenhum fornecedor desta entrega tem tabela de armazenagem cadastrada
                     </div>
-                  )}
+                  ) : null}
                   <div className="text-[10px] font-bold text-slate-400 uppercase mt-2">Custo Motorista (Terceiro)</div>
                   <Field label="Valor Combinado" value={formatCurrency(entrega.valorMotorista)} color="#f97316" />
                   <Field label="Saldo a Pagar" value={formatCurrency(entrega.saldoMotorista)} color={entrega.saldoMotorista > 0 ? "#f97316" : "#10b981"} />
@@ -401,13 +492,20 @@ export default function EntregaDetailPage() {
                       </span>
                     )}
                   </div>
-                  {selectedNotas.length > 0 && selectedNotas.length < (entrega.notas?.length || 0) && (
-                    <Button size="sm" onClick={handleSeparar} loading={separando}>
-                      <Scissors size={13} /> Separar {selectedNotas.length} NF(s)
-                    </Button>
+                  {!isReadOnly && (
+                    <div className="flex items-center gap-2">
+                      {selectedNotas.length > 0 && selectedNotas.length < (entrega.notas?.length || 0) && (
+                        <Button size="sm" onClick={handleSeparar} loading={separando}>
+                          <Scissors size={13} /> Separar {selectedNotas.length} NF(s)
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={openAddNFModal}>
+                        <Plus size={13} /> Adicionar NFs
+                      </Button>
+                    </div>
                   )}
                 </div>
-                {entrega.notas?.length > 1 && (
+                {!isReadOnly && entrega.notas?.length > 1 && (
                   <p className="text-[10px] mb-3" style={{ color: "var(--text3)" }}>
                     Selecione notas para separar em uma nova entrega
                   </p>
@@ -418,13 +516,13 @@ export default function EntregaDetailPage() {
                       const selected = selectedNotas.includes(nf.id);
                       return (
                         <div key={nf.id}
-                          onClick={() => entrega.notas.length > 1 && toggleNota(nf.id)}
+                          onClick={() => !isReadOnly && entrega.notas.length > 1 && toggleNota(nf.id)}
                           className={`flex items-center gap-3 p-2.5 rounded-lg border transition-all ${
                             selected
                               ? "bg-orange-50 border-orange-300 ring-1 ring-orange-200"
                               : "bg-slate-50 border-slate-100"
-                          } ${entrega.notas.length > 1 ? "cursor-pointer hover:border-orange-200" : ""}`}>
-                          {entrega.notas.length > 1 && (
+                          } ${!isReadOnly && entrega.notas.length > 1 ? "cursor-pointer hover:border-orange-200" : ""}`}>
+                          {!isReadOnly && entrega.notas.length > 1 && (
                             <input type="checkbox" checked={selected} readOnly
                               className="accent-orange-500 w-4 h-4 flex-shrink-0 pointer-events-none" />
                           )}
@@ -591,6 +689,100 @@ export default function EntregaDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Add NFs Modal */}
+      <Modal open={showAddNF} onClose={() => setShowAddNF(false)} title="Vincular Notas Fiscais a esta Entrega" size="lg">
+        <div className="space-y-3">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Buscar por número NF, emitente, CNPJ..."
+              value={searchNF}
+              onChange={(e) => setSearchNF(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {filteredNotasDisp.length > 0 && (
+            <div className="flex items-center justify-between px-1">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={filteredNotasDisp.length > 0 && filteredNotasDisp.every(n => selectedNFIds.includes(n.id))}
+                  onChange={toggleAllNFs}
+                  className="accent-orange-500 w-4 h-4"
+                />
+                Selecionar todos ({filteredNotasDisp.length})
+              </label>
+              <span className="text-xs text-slate-500">
+                {selectedNFIds.length} selecionada(s)
+              </span>
+            </div>
+          )}
+
+          <div className="max-h-[50vh] overflow-y-auto border rounded-lg" style={{ borderColor: "var(--border)" }}>
+            {filteredNotasDisp.length === 0 ? (
+              <div className="text-center py-8 text-slate-400 text-xs">
+                {notasDisp.length === 0 ? "Nenhuma NF sem entrega disponível" : "Nenhuma NF encontrada"}
+              </div>
+            ) : (
+              <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+                {filteredNotasDisp.map((nf: any) => {
+                  const selected = selectedNFIds.includes(nf.id);
+                  return (
+                    <div
+                      key={nf.id}
+                      onClick={() => toggleNF(nf.id)}
+                      className={`flex items-center gap-3 p-3 cursor-pointer transition-colors ${
+                        selected ? "bg-orange-50" : "hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        readOnly
+                        className="accent-orange-500 w-4 h-4 flex-shrink-0 pointer-events-none"
+                      />
+                      <FileText size={14} className="text-slate-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold">NF {nf.numero}</span>
+                          {nf.emitenteCnpj && (
+                            <span className="text-[10px] font-mono text-slate-400">{formatCNPJ(nf.emitenteCnpj)}</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-500 truncate">{nf.emitenteRazao}</div>
+                        <div className="text-[10px] text-slate-400 truncate">→ {nf.destinatarioRazao}</div>
+                        {nf.entrega && (
+                          <div className="text-[10px] text-amber-600 font-semibold mt-0.5">
+                            ⚠ Vinculada a {nf.entrega.codigo} — será movida
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-xs font-mono text-emerald-600 font-bold">{formatCurrency(nf.valorNota)}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {formatWeight(nf.pesoBruto)} · {nf.volumes} vol
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
+          <Button variant="ghost" onClick={() => setShowAddNF(false)}>Cancelar</Button>
+          <Button
+            onClick={handleAddNFs}
+            loading={addingNFs}
+            disabled={selectedNFIds.length === 0}
+          >
+            <Plus size={13} /> Vincular {selectedNFIds.length > 0 ? `${selectedNFIds.length} NF(s)` : ""}
+          </Button>
+        </div>
+      </Modal>
 
       {/* Ocorrência Modal */}
       <Modal open={showOcorrencia} onClose={() => setShowOcorrencia(false)} title="Registrar Ocorrência" size="sm">

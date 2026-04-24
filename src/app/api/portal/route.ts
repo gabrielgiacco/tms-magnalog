@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
             codigo: true,
             status: true,
             dataAgendada: true,
+            dataChegada: true,
             dataEntrega: true,
             cidade: true,
             notas: { select: { numero: true } },

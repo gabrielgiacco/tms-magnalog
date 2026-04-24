@@ -10,21 +10,27 @@ type PeriodoPreset = "todos" | "semanal" | "quinzenal" | "mensal";
 
 function getPresetDates(preset: PeriodoPreset): { inicio: string; fim: string } {
   const hoje = new Date();
-  const fim = hoje.toISOString().slice(0, 10);
   let inicio = "";
+  let fim = "";
 
   if (preset === "semanal") {
-    const d = new Date(hoje);
-    d.setDate(d.getDate() - 7);
-    inicio = d.toISOString().slice(0, 10);
+    // Semana: Domingo a Sábado da semana atual
+    const dom = new Date(hoje);
+    dom.setDate(dom.getDate() - dom.getDay()); // volta para domingo
+    const sab = new Date(dom);
+    sab.setDate(sab.getDate() + 6); // avança para sábado
+    inicio = dom.toISOString().slice(0, 10);
+    fim = sab.toISOString().slice(0, 10);
   } else if (preset === "quinzenal") {
     const d = new Date(hoje);
     d.setDate(d.getDate() - 15);
     inicio = d.toISOString().slice(0, 10);
+    fim = hoje.toISOString().slice(0, 10);
   } else if (preset === "mensal") {
     const d = new Date(hoje);
     d.setMonth(d.getMonth() - 1);
     inicio = d.toISOString().slice(0, 10);
+    fim = hoje.toISOString().slice(0, 10);
   }
 
   return { inicio, fim };
@@ -169,65 +175,65 @@ export default function FinanceiroTerceirosPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
         {/* KPIs */}
-        <div className="grid grid-cols-5 gap-4">
-          <Card className="flex items-center gap-3 p-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">
+          <Card className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: "rgba(249,115,22,.1)", border: "1px solid rgba(249,115,22,.25)" }}>
-              <HandCoins size={18} style={{ color: "#f97316" }} />
+              <HandCoins size={16} style={{ color: "#f97316" }} />
             </div>
-            <div>
-              <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text3)" }}>Custo Combinado</div>
-              <div className="font-head text-sm font-black" style={{ color: "#f97316" }}>{formatCurrency(totais.valorMotorista ?? 0)}</div>
+            <div className="min-w-0">
+              <div className="text-[9px] sm:text-[10px] font-mono uppercase truncate" style={{ color: "var(--text3)" }}>Combinado</div>
+              <div className="font-head text-xs sm:text-sm font-black truncate" style={{ color: "#f97316" }}>{formatCurrency(totais.valorMotorista ?? 0)}</div>
             </div>
           </Card>
-          <Card className="flex items-center gap-3 p-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          <Card className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: "rgba(59,130,246,.1)", border: "1px solid rgba(59,130,246,.25)" }}>
-              <DollarSign size={18} style={{ color: "#3b82f6" }} />
+              <DollarSign size={16} style={{ color: "#3b82f6" }} />
             </div>
-            <div>
-              <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text3)" }}>Adiantado (Frota)</div>
-              <div className="font-head text-sm font-black" style={{ color: "#3b82f6" }}>{formatCurrency(totais.adiantamentoMotorista ?? 0)}</div>
+            <div className="min-w-0">
+              <div className="text-[9px] sm:text-[10px] font-mono uppercase truncate" style={{ color: "var(--text3)" }}>Adiantado</div>
+              <div className="font-head text-xs sm:text-sm font-black truncate" style={{ color: "#3b82f6" }}>{formatCurrency(totais.adiantamentoMotorista ?? 0)}</div>
             </div>
           </Card>
-          <Card className="flex items-center gap-3 p-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          <Card className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: "rgba(16,185,129,.1)", border: "1px solid rgba(16,185,129,.25)" }}>
-              <AlertCircle size={18} style={{ color: "#10b981" }} />
+              <AlertCircle size={16} style={{ color: "#10b981" }} />
             </div>
-            <div>
-              <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text3)" }}>Vales / Saídas</div>
-              <div className="font-head text-sm font-black" style={{ color: "#10b981" }}>{formatCurrency(totais.valorSaida ?? 0)}</div>
+            <div className="min-w-0">
+              <div className="text-[9px] sm:text-[10px] font-mono uppercase truncate" style={{ color: "var(--text3)" }}>Vales</div>
+              <div className="font-head text-xs sm:text-sm font-black truncate" style={{ color: "#10b981" }}>{formatCurrency(totais.valorSaida ?? 0)}</div>
             </div>
           </Card>
-          <Card className="flex items-center gap-3 p-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          <Card className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.25)" }}>
-              <FileSignature size={18} style={{ color: "#ef4444" }} />
+              <FileSignature size={16} style={{ color: "#ef4444" }} />
             </div>
-            <div>
-              <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text3)" }}>Descontos (Avarias)</div>
-              <div className="font-head text-sm font-black" style={{ color: "#ef4444" }}>{formatCurrency(totais.descontosMotorista ?? 0)}</div>
+            <div className="min-w-0">
+              <div className="text-[9px] sm:text-[10px] font-mono uppercase truncate" style={{ color: "var(--text3)" }}>Descontos</div>
+              <div className="font-head text-xs sm:text-sm font-black truncate" style={{ color: "#ef4444" }}>{formatCurrency(totais.descontosMotorista ?? 0)}</div>
             </div>
           </Card>
-          <Card className="flex items-center gap-3 p-4 border border-rose-200">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          <Card className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 border border-rose-200 col-span-2 sm:col-span-1">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: "rgba(244,63,94,.1)", border: "1px solid rgba(244,63,94,.25)" }}>
-              <Clock size={18} style={{ color: "#f43f5e" }} />
+              <Clock size={16} style={{ color: "#f43f5e" }} />
             </div>
-            <div>
-              <div className="text-[10px] font-mono uppercase font-bold text-rose-500">Saldo Pendente</div>
-              <div className="font-head text-lg font-black text-rose-600">{formatCurrency(totais.saldoMotorista ?? 0)}</div>
+            <div className="min-w-0">
+              <div className="text-[9px] sm:text-[10px] font-mono uppercase font-bold text-rose-500">Saldo Pendente</div>
+              <div className="font-head text-sm sm:text-lg font-black text-rose-600">{formatCurrency(totais.saldoMotorista ?? 0)}</div>
             </div>
           </Card>
         </div>
 
         {/* Filters */}
-        <Card className="p-4 space-y-3">
-          <div className="flex gap-3 items-center flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
+        <Card className="p-3 sm:p-4 space-y-3">
+          <div className="flex gap-2 sm:gap-3 items-center flex-wrap">
+            <div className="relative flex-1 min-w-0 w-full sm:w-auto sm:min-w-[200px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
               <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 placeholder="Buscar por nome do motorista ou NF..."
@@ -243,10 +249,10 @@ export default function FinanceiroTerceirosPage() {
           </div>
 
           {/* Date range + period presets */}
-          <div className="flex gap-3 items-center flex-wrap pt-2" style={{ borderTop: "1px solid var(--border)" }}>
-            <div className="flex items-center gap-1.5 text-xs font-bold uppercase" style={{ color: "var(--text3)" }}>
+          <div className="flex gap-2 sm:gap-3 items-center flex-wrap pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+            <div className="hidden sm:flex items-center gap-1.5 text-xs font-bold uppercase" style={{ color: "var(--text3)" }}>
               <CalendarDays size={14} />
-              Período:
+              Periodo:
             </div>
 
             {/* Preset buttons */}
@@ -255,7 +261,7 @@ export default function FinanceiroTerceirosPage() {
                 <button
                   key={btn.value}
                   onClick={() => handlePresetChange(btn.value)}
-                  className="px-3 py-1.5 text-xs font-bold transition-all"
+                  className="px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold transition-all"
                   style={{
                     background: periodoAtivo === btn.value ? "var(--accent)" : "transparent",
                     color: periodoAtivo === btn.value ? "#fff" : "var(--text2)",
@@ -267,24 +273,24 @@ export default function FinanceiroTerceirosPage() {
               ))}
             </div>
 
-            <div className="flex items-center gap-2 ml-auto">
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto flex-wrap">
+              <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
                 <span className="text-[10px] font-mono uppercase" style={{ color: "var(--text3)" }}>De:</span>
                 <input
                   type="date"
                   value={dataInicio}
                   onChange={(e) => handleDateChange("inicio", e.target.value)}
-                  className="px-2 py-1.5 rounded-lg text-xs outline-none"
+                  className="px-2 py-1.5 rounded-lg text-xs outline-none flex-1 sm:flex-initial"
                   style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}
                 />
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-mono uppercase" style={{ color: "var(--text3)" }}>Até:</span>
+              <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
+                <span className="text-[10px] font-mono uppercase" style={{ color: "var(--text3)" }}>Ate:</span>
                 <input
                   type="date"
                   value={dataFim}
                   onChange={(e) => handleDateChange("fim", e.target.value)}
-                  className="px-2 py-1.5 rounded-lg text-xs outline-none"
+                  className="px-2 py-1.5 rounded-lg text-xs outline-none flex-1 sm:flex-initial"
                   style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}
                 />
               </div>
@@ -293,7 +299,7 @@ export default function FinanceiroTerceirosPage() {
                   onClick={() => { handlePresetChange("todos"); }}
                   className="text-[10px] font-bold text-rose-500 hover:text-rose-600 px-2 py-1 rounded-md hover:bg-rose-50 transition-colors"
                 >
-                  ✕ Limpar
+                  Limpar
                 </button>
               )}
             </div>
@@ -302,7 +308,57 @@ export default function FinanceiroTerceirosPage() {
 
         {/* Table */}
         <Card className="p-0 overflow-hidden shadow">
-          {loading ? <Loading /> : entregas.length === 0 ? <Empty icon="🛣️" text="Nenhum acerto de viagem pendente." /> : (
+          {loading ? <Loading /> : entregas.length === 0 ? <Empty icon="" text="Nenhum acerto de viagem pendente." /> : (
+            <>
+            {/* Mobile card list */}
+            <div className="block lg:hidden divide-y" style={{ borderColor: "var(--border)" }}>
+              {entregas.map((e) => (
+                <div key={e.id} className={`p-3 active:bg-slate-50 ${e.isDiariaExtra ? "opacity-60" : ""}`}>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                      <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase flex-shrink-0 ${e.isRota ? "bg-orange-100 text-orange-700 border border-orange-200" : "bg-blue-100 text-blue-700 border border-blue-200"}`}>
+                        {e.isRota ? "Rota" : "Direta"}
+                      </span>
+                      <span className="font-mono text-xs font-bold text-gray-700 truncate">{getIdentificador(e)}</span>
+                      {e.isDiariaPrincipal && e.diariaQtdViagens > 1 && (
+                        <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          DIARIA {e.diariaQtdSaidas} {e.diariaQtdSaidas === 1 ? "saida" : "saidas"}{e.diariaQtdDiretas > 0 && e.diariaQtdRotas > 0 ? ` + ${e.diariaQtdDiretas} dir.` : ""}
+                        </span>
+                      )}
+                      {e.isDiariaExtra && (
+                        <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-gray-100 text-gray-500 border border-gray-200">
+                          Incluso na diaria
+                        </span>
+                      )}
+                    </div>
+                    <StatusBadge status={e.statusCanhoto || "PENDENTE"} />
+                  </div>
+                  <div className="font-bold text-sm text-gray-800 uppercase truncate">{e.motorista?.nome || "Motorista nao vinculado"}</div>
+                  <div className="text-[10px] text-gray-400 font-mono truncate">Para: {e.cidade} - {formatDate(e.dataEntrega || e.dataAgendada) || "-"}</div>
+                  <div className="grid grid-cols-2 gap-1.5 mt-2 text-[11px]">
+                    <div><span className="text-gray-400">Combinado: </span><span className="font-mono font-bold text-orange-500">{formatCurrency(e.valorMotorista)}</span></div>
+                    <div><span className="text-gray-400">Vales: </span><span className="font-mono text-gray-600">{formatCurrency(e.valorSaida)}</span></div>
+                    <div><span className="text-gray-400">Adiant.: </span><span className="font-mono text-blue-500 font-bold">{formatCurrency(e.adiantamentoMotorista)}</span></div>
+                    <div><span className="text-gray-400">Desc.: </span><span className="font-mono text-red-500 font-bold">{formatCurrency(e.descontosMotorista)}</span></div>
+                  </div>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                    <div>
+                      <div className="text-[9px] uppercase font-bold text-rose-500">Saldo</div>
+                      <div className={`font-mono text-sm font-black ${e.saldoMotorista > 0 ? "text-rose-600" : "text-emerald-500"}`}>
+                        {formatCurrency(e.saldoMotorista)}
+                      </div>
+                    </div>
+                    <button onClick={() => openEdit(e)}
+                      className="px-3 py-2 rounded-lg text-xs font-bold transition-all bg-gray-800 text-white hover:bg-gray-700">
+                      Acerto
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden lg:block">
             <Table>
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
@@ -319,20 +375,30 @@ export default function FinanceiroTerceirosPage() {
               </thead>
               <tbody>
                 {entregas.map((e) => (
-                  <Tr key={e.id} className="hover:bg-slate-50">
+                  <Tr key={e.id} className={`hover:bg-slate-50 ${e.isDiariaExtra ? "opacity-50" : ""}`}>
                     <Td>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase ${e.isRota ? "bg-orange-100 text-orange-700 border border-orange-200" : "bg-blue-100 text-blue-700 border border-blue-200"}`}>
-                          {e.isRota ? "🛣️ Rota" : "📄 Direta"}
+                          {e.isRota ? "Rota" : "Direta"}
                         </span>
                         <span className="font-mono text-xs font-bold text-gray-700">
                           {getIdentificador(e)}
                         </span>
+                        {e.isDiariaExtra && (
+                          <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-gray-100 text-gray-400 border border-gray-200">
+                            Incluso na diaria
+                          </span>
+                        )}
                       </div>
                     </Td>
                     <Td>
                       <div className="font-bold text-sm text-gray-800 uppercase">{e.motorista?.nome || "Motorista não vinculado"}</div>
-                      <div className="text-[10px] text-gray-400 font-mono">Rota para: {e.cidade}</div>
+                      <div className="text-[10px] text-gray-400 font-mono">
+                        {e.isDiariaPrincipal && e.diariaQtdViagens > 1
+                          ? <span className="text-emerald-600 font-bold">Diaria — {e.diariaQtdSaidas} {e.diariaQtdSaidas === 1 ? "saida" : "saidas"} no dia{e.diariaQtdDiretas > 0 && e.diariaQtdRotas > 0 ? ` + ${e.diariaQtdDiretas} direta(s)` : ""}</span>
+                          : `Rota para: ${e.cidade}`
+                        }
+                      </div>
                     </Td>
                     <Td>
                       <span className="font-mono text-[11px] font-semibold" style={{ color: "var(--text2)" }}>
@@ -342,7 +408,9 @@ export default function FinanceiroTerceirosPage() {
                     <Td>
                       <StatusBadge status={e.statusCanhoto || "PENDENTE"} />
                     </Td>
-                    <Td className="text-right"><span className="font-mono text-sm font-bold text-orange-500">{formatCurrency(e.valorMotorista)}</span></Td>
+                    <Td className="text-right">
+                      <span className={`font-mono text-sm font-bold ${e.isDiariaExtra ? "text-gray-300" : "text-orange-500"}`}>{formatCurrency(e.valorMotorista)}</span>
+                    </Td>
                     <Td className="text-right"><span className="font-mono text-xs text-gray-500">{formatCurrency(e.valorSaida)}</span></Td>
                     <Td className="text-right text-gray-500">
                         <div className="font-mono text-xs text-blue-500 font-bold">{formatCurrency(e.adiantamentoMotorista)}</div>
@@ -365,12 +433,14 @@ export default function FinanceiroTerceirosPage() {
                 ))}
               </tbody>
             </Table>
+            </div>
+            </>
           )}
         </Card>
       </div>
 
-      <Modal open={showEdit} onClose={() => setShowEdit(false)} title="💸 Fechar Acerto do Terceiro" size="lg">
-        <div className="grid grid-cols-2 gap-4">
+      <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Fechar Acerto do Terceiro" size="lg">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Input label="Valor Combinado (Frete)" type="number" step="0.01" value={editForm.valorMotorista} onChange={(e) => set("valorMotorista", e.target.value)} />
           <Input label="Vales / Saída (Pedágio)" type="number" step="0.01" value={editForm.valorSaida} onChange={(e) => set("valorSaida", e.target.value)} />
           
@@ -390,22 +460,22 @@ export default function FinanceiroTerceirosPage() {
              <Input label="R$ Desconto Falta" type="number" step="0.01" value={editForm.descontosMotorista} onChange={(e) => set("descontosMotorista", e.target.value)} />
           </div>
 
-          <div className="col-span-2 mt-2 p-4 rounded-xl flex justify-between items-center" style={{ background: "rgba(244,63,94,.08)", border: "1px solid rgba(244,63,94,.25)" }}>
+          <div className="sm:col-span-2 mt-2 p-3 sm:p-4 rounded-xl flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3" style={{ background: "rgba(244,63,94,.08)", border: "1px solid rgba(244,63,94,.25)" }}>
             <div>
                 <div className="text-xs uppercase font-bold text-rose-800">Saldo Restante Calculado:</div>
-                <div className="font-head text-3xl font-black mt-1" style={{ color: currentSaldoEdit > 0 ? "#e11d48" : "#10b981" }}>
+                <div className="font-head text-2xl sm:text-3xl font-black mt-1" style={{ color: currentSaldoEdit > 0 ? "#e11d48" : "#10b981" }}>
                 {formatCurrency(currentSaldoEdit)}
                 </div>
             </div>
-            
-            <div className="text-right">
-                <Input label="Data Pgto Quitação" type="date" value={editForm.dataPagamentoSaldo} onChange={(e) => set("dataPagamentoSaldo", e.target.value)} />
+
+            <div className="text-left sm:text-right w-full sm:w-auto">
+                <Input label="Data Pgto Quitacao" type="date" value={editForm.dataPagamentoSaldo} onChange={(e) => set("dataPagamentoSaldo", e.target.value)} />
             </div>
           </div>
         </div>
-        <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-100">
-           <div className="text-[10px] text-gray-500 font-mono">Saldo = Combinado - Saída - Adiantamento - Desconto</div>
-           <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mt-6 pt-4 border-t border-gray-100">
+           <div className="text-[10px] text-gray-500 font-mono">Saldo = Combinado - Saida - Adiantamento - Desconto</div>
+           <div className="flex gap-3 justify-end">
             <Button variant="ghost" onClick={() => setShowEdit(false)}>Cancelar</Button>
             <Button className="bg-gray-800 text-white" onClick={handleSave} loading={saving}>Salvar Acerto</Button>
            </div>

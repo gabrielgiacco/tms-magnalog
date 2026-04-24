@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     const dataInicio = searchParams.get("dataInicio");
     const dataFim = searchParams.get("dataFim");
     const apenasAgendadas = searchParams.get("apenasAgendadas") === "true";
+    const atrasadas = searchParams.get("atrasadas") === "true";
     const sortBy = searchParams.get("sortBy");
     const sortOrder = searchParams.get("sortOrder") as "asc" | "desc" | null;
 
@@ -37,8 +38,15 @@ export async function GET(req: NextRequest) {
     // AND array to combine multiple filter groups
     const andConditions: any[] = [];
 
+    // Filtro especial: entregas atrasadas (dataAgendada < hoje e não entregues)
+    if (atrasadas) {
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      where.dataAgendada = { lt: hoje };
+      where.status = { notIn: ["ENTREGUE", "FINALIZADO"] };
+    }
     // Ocultar finalizados por padrão
-    if (!mostrarFinalizados) {
+    else if (!mostrarFinalizados) {
       where.status = { notIn: ["FINALIZADO"] };
     }
 
@@ -59,6 +67,7 @@ export async function GET(req: NextRequest) {
         { notas: { some: { emitenteRazao: { contains: cliente, mode: "insensitive" } } } },
         { notas: { some: { chaveAcesso: { contains: cliente } } } },
         { motorista: { nome: { contains: cliente, mode: "insensitive" } } },
+        { rota: { codigo: { contains: cliente, mode: "insensitive" } } },
       ];
       const digits = cliente.replace(/\D/g, "");
       if (digits.length > 0) orConditions.push({ cnpj: { contains: digits } });

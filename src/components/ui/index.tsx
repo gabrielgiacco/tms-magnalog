@@ -108,19 +108,19 @@ export function Modal({ open, onClose, title, children, size = "md" }: {
   if (!open) return null;
   const sizes = { sm: "max-w-md", md: "max-w-xl", lg: "max-w-2xl", xl: "max-w-4xl" };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ background: "rgba(15,23,42,0.6)", backdropFilter: "blur(4px)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={cn("w-full rounded-2xl max-h-[90vh] overflow-y-auto animate-fadeIn shadow-2xl", sizes[size])}
+      <div className={cn("w-full rounded-t-2xl sm:rounded-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto animate-fadeIn shadow-2xl", sizes[size])}
         style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: "1px solid var(--border)" }}>
-          <h2 className="font-head text-lg font-bold tracking-tight">{title}</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg transition-all hover:opacity-70"
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 sm:py-5 sticky top-0 z-10" style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
+          <h2 className="font-head text-base sm:text-lg font-bold tracking-tight truncate pr-2">{title}</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg transition-all hover:opacity-70 flex-shrink-0"
             style={{ background: "var(--surface2)", color: "var(--text2)" }}>
             <X size={16} />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-4 sm:p-6">{children}</div>
       </div>
     </div>
   );
@@ -192,18 +192,18 @@ export function KpiCard({ label, value, sub, icon, color = "#f97316", trend }: {
   label: string; value: string | number; sub?: string; icon: string; color?: string; trend?: { value: string; up: boolean };
 }) {
   return (
-    <div className="rounded-xl p-5 relative overflow-hidden transition-transform hover:-translate-y-0.5 shadow-sm"
+    <div className="rounded-xl p-3 sm:p-5 relative overflow-hidden transition-transform hover:-translate-y-0.5 shadow-sm"
       style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
       <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: color === "#f97316" ? "var(--accent)" : color }} />
-      <div className="text-[10px] uppercase tracking-widest font-mono mb-2" style={{ color: "var(--text3)" }}>{label}</div>
-      <div className="font-head text-3xl font-black tracking-tight" style={{ color }}>{value}</div>
-      {sub && <div className="text-xs mt-1" style={{ color: "var(--text3)" }}>{sub}</div>}
+      <div className="text-[8px] sm:text-[10px] uppercase tracking-widest font-mono mb-1 sm:mb-2 truncate" style={{ color: "var(--text3)" }}>{label}</div>
+      <div className="font-head text-xl sm:text-3xl font-black tracking-tight truncate" style={{ color }}>{value}</div>
+      {sub && <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1 truncate" style={{ color: "var(--text3)" }}>{sub}</div>}
       {trend && (
         <div className={`flex items-center gap-1 mt-2 text-xs ${trend.up ? "text-emerald-400" : "text-red-400"}`}>
           {trend.up ? "↑" : "↓"} {trend.value}
         </div>
       )}
-      <div className="absolute right-4 top-4 text-3xl opacity-10">{icon}</div>
+      <div className="absolute right-2 sm:right-4 top-3 sm:top-4 text-xl sm:text-3xl opacity-10">{icon}</div>
     </div>
   );
 }

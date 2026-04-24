@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       motorista: { select: { id: true, nome: true } },
       veiculo: { select: { id: true, placa: true, tipo: true } },
       entregas: {
-        select: { id: true, codigo: true, razaoSocial: true, cidade: true, status: true, pesoTotal: true, volumeTotal: true, notas: { select: { numero: true } } },
+        select: { id: true, codigo: true, razaoSocial: true, cidade: true, status: true, pesoTotal: true, volumeTotal: true, valorFrete: true, notas: { select: { numero: true } } },
       },
       _count: { select: { entregas: true } },
       qualidade: { select: { id: true } },
@@ -71,12 +71,22 @@ export async function POST(req: NextRequest) {
     }
 
     let resolvedValorMotorista = parseFloat(String(body.valorMotorista).replace(",", ".")) || 0;
-    
+
     if ((!body.valorMotorista || resolvedValorMotorista === 0) && body.motoristaId) {
       const moto = await prisma.motorista.findUnique({ where: { id: body.motoristaId }, select: { tipo: true, valorDiaria: true } });
       if (moto) {
         if (moto.tipo === "FROTA") resolvedValorMotorista = 0;
-        else if (moto.tipo === "DIARIA") resolvedValorMotorista = moto.valorDiaria || 0;
+        else if (moto.tipo === "DIARIA") {
+          // Verificar se já existe outra rota ou entrega direta para este motorista na mesma data
+          const rotaDate = body.data ? new Date(body.data) : new Date();
+          const diaInicio = new Date(rotaDate); diaInicio.setHours(0,0,0,0);
+          const diaFim = new Date(rotaDate); diaFim.setHours(23,59,59,999);
+          const [rotasMesmoDia, entregasMesmoDia] = await Promise.all([
+            prisma.rota.count({ where: { motoristaId: body.motoristaId, data: { gte: diaInicio, lte: diaFim }, status: { not: "CANCELADA" } } }),
+            prisma.entrega.count({ where: { motoristaId: body.motoristaId, rotaId: null, dataAgendada: { gte: diaInicio, lte: diaFim }, status: { notIn: ["PROGRAMADO", "EM_SEPARACAO"] } } }),
+          ]);
+          resolvedValorMotorista = (rotasMesmoDia + entregasMesmoDia) === 0 ? (moto.valorDiaria || 0) : 0;
+        }
       }
     }
 

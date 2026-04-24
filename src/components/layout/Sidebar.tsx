@@ -7,12 +7,12 @@ import {
   LayoutDashboard, Package, Calendar, Users, FileText,
   DollarSign, Settings, BarChart2, Wallet, FileUp,
   Truck, Globe, Columns, Route, ShieldCheck, AlertTriangle,
-  X, ChevronLeft, ChevronRight as ChevronRightIcon,
+  Layers, X, ChevronLeft, ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN","FINANCEIRO","OPERACIONAL"] },
-  { href: "/entregas", label: "Entregas", icon: Package, roles: ["ADMIN","FINANCEIRO","OPERACIONAL"] },
+  { href: "/entregas", label: "Entregas", icon: Package, roles: ["ADMIN","FINANCEIRO","OPERACIONAL","CONFERENTE"] },
   { href: "/agendamentos", label: "Agendamentos", icon: Calendar, roles: ["ADMIN","FINANCEIRO","OPERACIONAL","CONFERENTE"] },
   { href: "/importacao", label: "Documentos Fiscais", icon: FileUp, roles: ["ADMIN","OPERACIONAL","FINANCEIRO"] },
   { href: "/kanban", label: "Kanban", icon: Columns, roles: ["ADMIN","OPERACIONAL","CONFERENTE"] },
@@ -22,6 +22,7 @@ const navItems = [
   { href: "/faturamento", label: "Faturamento", icon: Wallet, roles: ["ADMIN","FINANCEIRO"] },
   { href: "/relatorios", label: "Relatórios", icon: BarChart2, roles: ["ADMIN","FINANCEIRO"] },
   { href: "/avarias", label: "Avarias", icon: AlertTriangle, roles: ["ADMIN","OPERACIONAL","CONFERENTE"] },
+  { href: "/paletes", label: "Paletes", icon: Layers, roles: ["ADMIN","OPERACIONAL","FINANCEIRO"] },
   { href: "/qualidade", label: "Qualidade", icon: ShieldCheck, roles: ["ADMIN"] },
   { href: "/portal", label: "Portal Cliente", icon: Globe, roles: ["ADMIN","CLIENTE"] },
   { href: "/usuarios", label: "Usuários", icon: Users, roles: ["ADMIN"] },

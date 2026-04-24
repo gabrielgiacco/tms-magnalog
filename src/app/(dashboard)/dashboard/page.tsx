@@ -68,9 +68,9 @@ export default function DashboardPage() {
   return (
     <>
       <Topbar title="Dashboard" subtitle={`${new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}`} />
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-5">
         {/* KPIs */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
           <KpiCard label="Em Andamento" value={kpis?.emAndamento ?? 0} icon="🚛" color="#f97316" sub="entregas ativas" />
           <KpiCard label="Atrasadas" value={kpis?.atrasadas ?? 0} icon="⚠️" color="#ef4444"
             sub={kpis?.atrasadas > 0 ? "requer atenção" : "nenhuma"} />
@@ -82,18 +82,18 @@ export default function DashboardPage() {
 
         {/* Alerts */}
         {(kpis?.atrasadas > 0 || kpis?.ocorrenciasAbertas > 0) && (
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             {kpis?.atrasadas > 0 && (
-              <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl text-sm"
+              <div className="flex-1 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm"
                 style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.25)", color: "#ef4444" }}>
-                <AlertTriangle size={16} />
+                <AlertTriangle size={14} className="flex-shrink-0" />
                 <span><strong>{kpis.atrasadas}</strong> entrega(s) com prazo vencido</span>
               </div>
             )}
             {kpis?.ocorrenciasAbertas > 0 && (
-              <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl text-sm"
+              <div className="flex-1 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm"
                 style={{ background: "rgba(245,158,11,.1)", border: "1px solid rgba(245,158,11,.25)", color: "#f59e0b" }}>
-                <AlertTriangle size={16} />
+                <AlertTriangle size={14} className="flex-shrink-0" />
                 <span><strong>{kpis.ocorrenciasAbertas}</strong> ocorrência(s) em aberto</span>
               </div>
             )}
@@ -101,8 +101,8 @@ export default function DashboardPage() {
         )}
 
         {/* Charts row */}
-        <div className="grid grid-cols-3 gap-4">
-          <Card className="col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+          <Card className="lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <div className="font-head text-sm font-bold">Entregas por Dia</div>
               <span className="text-[10px] font-mono px-2 py-1 rounded" style={{ background: "var(--surface2)", color: "var(--text3)", border: "1px solid var(--border)" }}>7 dias</span>
@@ -123,7 +123,7 @@ export default function DashboardPage() {
 
           <Card>
             <div className="font-head text-sm font-bold mb-4">Por Status</div>
-            <div className="space-y-2.5">
+            <div className="grid grid-cols-2 lg:grid-cols-1 gap-x-4 gap-y-2.5">
               {statusData.map((s: any) => {
                 const total = statusData.reduce((a: number, b: any) => a + b.value, 0);
                 const pct = total ? Math.round((s.value / total) * 100) : 0;
@@ -146,31 +146,60 @@ export default function DashboardPage() {
         {/* Últimas entregas */}
         <Card>
           <div className="font-head text-sm font-bold mb-4">Últimas Entregas</div>
-          <Table>
-            <thead>
-              <tr>
-                <Th>NF</Th><Th>Cliente</Th><Th>Cidade</Th><Th>Motorista</Th>
-                <Th>Notas</Th><Th>Status</Th><Th>Agendado</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {ultimasEntregas?.map((e: any) => (
-                <Tr key={e.id} onClick={() => window.location.href = `/entregas/${e.id}`}>
-                  <Td>
-                    <span className="font-mono text-[11px]" style={{ color: "#3b82f6" }}>
-                      {e.notas && e.notas.length > 0 ? e.notas.map((n: any) => n.numero).join(", ") : "—"}
-                    </span>
-                  </Td>
-                  <Td><span className="font-medium text-sm">{e.razaoSocial}</span></Td>
-                  <Td><span className="text-xs" style={{ color: "var(--text2)" }}>{e.cidade}{e.uf ? ` — ${e.uf}` : ""}</span></Td>
-                  <Td><span className="text-xs" style={{ color: "var(--text2)" }}>{e.motorista?.nome || "—"}</span></Td>
-                  <Td><span className="font-mono text-xs">{e._count?.notas ?? 0}</span></Td>
-                  <Td><StatusBadge status={e.status} /></Td>
-                  <Td><span className="text-xs font-mono" style={{ color: "var(--text3)" }}>{formatDate(e.dataAgendada)}</span></Td>
-                </Tr>
-              ))}
-            </tbody>
-          </Table>
+          {/* Mobile: card list */}
+          <div className="block sm:hidden space-y-2">
+            {ultimasEntregas?.map((e: any) => (
+              <div key={e.id}
+                onClick={() => window.location.href = `/entregas/${e.id}`}
+                className="rounded-lg p-3 cursor-pointer transition-colors hover:bg-slate-50 active:bg-slate-100"
+                style={{ border: "1px solid var(--border)" }}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-mono text-[11px]" style={{ color: "#3b82f6" }}>
+                    {e.notas && e.notas.length > 0 ? e.notas.map((n: any) => n.numero).join(", ") : e.codigo}
+                  </span>
+                  <StatusBadge status={e.status} />
+                </div>
+                <div className="text-sm font-medium truncate">{e.razaoSocial}</div>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-[11px]" style={{ color: "var(--text3)" }}>{e.cidade}{e.uf ? ` - ${e.uf}` : ""}</span>
+                  <span className="text-[11px] font-mono" style={{ color: "var(--text3)" }}>{formatDate(e.dataAgendada)}</span>
+                </div>
+                {e.motorista?.nome && (
+                  <div className="text-[11px] mt-0.5" style={{ color: "var(--text3)" }}>
+                    <Truck size={10} className="inline mr-1" />{e.motorista.nome}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {/* Desktop: table */}
+          <div className="hidden sm:block">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>NF</Th><Th>Cliente</Th><Th className="hidden md:table-cell">Cidade</Th><Th className="hidden lg:table-cell">Motorista</Th>
+                  <Th className="hidden lg:table-cell">Notas</Th><Th>Status</Th><Th className="hidden md:table-cell">Agendado</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {ultimasEntregas?.map((e: any) => (
+                  <Tr key={e.id} onClick={() => window.location.href = `/entregas/${e.id}`}>
+                    <Td>
+                      <span className="font-mono text-[11px]" style={{ color: "#3b82f6" }}>
+                        {e.notas && e.notas.length > 0 ? e.notas.map((n: any) => n.numero).join(", ") : "—"}
+                      </span>
+                    </Td>
+                    <Td><span className="font-medium text-sm">{e.razaoSocial}</span></Td>
+                    <Td className="hidden md:table-cell"><span className="text-xs" style={{ color: "var(--text2)" }}>{e.cidade}{e.uf ? ` — ${e.uf}` : ""}</span></Td>
+                    <Td className="hidden lg:table-cell"><span className="text-xs" style={{ color: "var(--text2)" }}>{e.motorista?.nome || "—"}</span></Td>
+                    <Td className="hidden lg:table-cell"><span className="font-mono text-xs">{e._count?.notas ?? 0}</span></Td>
+                    <Td><StatusBadge status={e.status} /></Td>
+                    <Td className="hidden md:table-cell"><span className="text-xs font-mono" style={{ color: "var(--text3)" }}>{formatDate(e.dataAgendada)}</span></Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
         </Card>
       </div>
     </>

@@ -385,6 +385,48 @@ model TabelaArmazenagem {
   updatedAt       DateTime @updatedAt
 }
 
+model FaturaArmazenagem {
+  id               String                    @id @default(cuid())
+  numero           String                    @unique
+  fornecedorCnpj   String
+  fornecedorNome   String
+  valorTotal       Float                     @default(0)
+  dataEmissao      DateTime                  @default(now())
+  dataVencimento   DateTime
+  status           StatusFatura              @default(ABERTA)
+  observacoes      String?                   @db.Text
+  items            ItemFaturaArmazenagem[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([fornecedorCnpj])
+}
+
+model ItemFaturaArmazenagem {
+  id                 String            @id @default(cuid())
+  faturaId           String
+  fatura             FaturaArmazenagem @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+  entregaId          String
+  fornecedorCnpj     String
+  codigoEntrega      String
+  destinatarioRazao  String?
+  cidade             String?
+  nfs                String?
+  paletes            Int               @default(0)
+  diasDecorridos     Int               @default(0)
+  diasCobraveis      Int               @default(0)
+  diasFree           Int               @default(0)
+  valorPaleteDia     Float             @default(0)
+  valorCalculado     Float             @default(0)
+  dataEntrada        DateTime?
+  dataSaida          DateTime?
+  createdAt          DateTime          @default(now())
+
+  @@unique([entregaId, fornecedorCnpj])
+  @@index([faturaId])
+  @@index([fornecedorCnpj])
+}
+
 model QualidadeOperacional {
   id                   String   @id @default(cuid())
   entregaId           String?  @unique
@@ -508,6 +550,52 @@ model AvariaProduto {
   avaria           Avaria   @relation(fields: [avariaId], references: [id], onDelete: Cascade)
 
   @@index([avariaId])
+}
+
+// ─── Controle de Paletes CHEP ────────────────────────────────────────────
+
+enum TipoMovimentoPalete {
+  SAIDA
+  ENTRADA
+}
+
+enum StatusPalete {
+  PENDENTE
+  ACEITO
+  CANCELADO
+  RETORNOU
+}
+
+model PaleteConfig {
+  id          String   @id @default("default")
+  cnpjPool    String   @default("")
+  razaoPool   String   @default("")
+  glnPool     String   @default("")
+  tipoPallet  String   @default("CHEP")
+  updatedAt   DateTime @updatedAt
+}
+
+model PaleteMovimento {
+  id              String               @id @default(cuid())
+  nf              String
+  tipoPallet      String               @default("CHEP")
+  dataEmissao     DateTime
+  quantidade      Int
+  cnpjCliente     String
+  razaoCliente    String
+  glnCliente      String?
+  tipoMovimento   TipoMovimentoPalete
+  status          StatusPalete         @default(PENDENTE)
+  observacoes     String?
+  ticketBaixa     String?
+  chaveAcessoNFe  String?              @unique
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([dataEmissao])
+  @@index([status])
+  @@index([tipoMovimento])
+  @@index([cnpjCliente])
 }
 
 model NotaDevolucao {

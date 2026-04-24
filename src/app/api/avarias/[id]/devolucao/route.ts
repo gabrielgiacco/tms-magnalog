@@ -61,6 +61,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 }
 
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+    const { searchParams } = new URL(req.url);
+    const devolucaoId = searchParams.get("devolucaoId");
+    if (!devolucaoId) return NextResponse.json({ error: "devolucaoId obrigatório" }, { status: 400 });
+
+    await prisma.notaDevolucao.delete({ where: { id: devolucaoId } });
+    return NextResponse.json({ ok: true });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);

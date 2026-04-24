@@ -259,7 +259,7 @@ export default function RotaDetailPage() {
                 <div className="text-[10px] font-mono uppercase tracking-widest mb-4 text-slate-500">Indicadores da Rota</div>
                 <div className="grid grid-cols-4 gap-3">
                   {[
-                    { label: "Entregas", value: totalEntregas, color: "#f97316", icon: "📦" },
+                    { label: "Entregas", value: new Set((rota.entregas || []).map((e: any) => e.razaoSocial)).size, color: "#f97316", icon: "📦" },
                     { label: "NFs", value: nfsTotal, color: "#3b82f6", icon: "📄" },
                     { label: "Peso", value: formatWeight(rota.pesoTotal), color: "#8b5cf6", icon: "⚖️" },
                     { label: "Receita", value: formatCurrency(totalFrete), color: "#10b981", icon: "💰" },

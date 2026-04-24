@@ -250,7 +250,7 @@ export default function KanbanPage() {
       });
       if (!res.ok) throw new Error();
       toast.success(`Movido para ${COLS.find((c) => c.key === targetColKey)?.label}`);
-      if (targetColKey === "FINALIZADO" && !entrega.isRota) {
+      if (targetColKey === "FINALIZADO") {
         setQualityEntregaId(active.id as string);
       }
     } catch {
@@ -285,23 +285,36 @@ export default function KanbanPage() {
         subtitle={`${filtered.length} de ${entregas.length} entregas`}
         actions={
           <div className="flex items-center gap-2">
-            <div className="relative">
+            <div className="relative hidden sm:block">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar NF, cliente, fornecedor..."
-                className="pl-8 pr-3 py-1.5 rounded-lg text-xs outline-none w-[220px] bg-[var(--surface2)] border border-[var(--border)] text-[var(--text)]"
+                placeholder="Buscar NF, cliente..."
+                className="pl-8 pr-3 py-1.5 rounded-lg text-xs outline-none w-[180px] lg:w-[220px] bg-[var(--surface2)] border border-[var(--border)] text-[var(--text)]"
               />
             </div>
             <Button variant="ghost" size="sm" onClick={fetchData}>
-              <RefreshCw size={13} /> Atualizar
+              <RefreshCw size={13} /> <span className="hidden sm:inline">Atualizar</span>
             </Button>
           </div>
         }
       />
 
-      <div className="flex-1 overflow-x-auto p-4">
+      {/* Mobile search */}
+      <div className="sm:hidden px-3 pt-3">
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar NF, cliente, fornecedor..."
+            className="w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none bg-[var(--surface2)] border border-[var(--border)] text-[var(--text)]"
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-x-auto p-3 sm:p-4">
         <DndContext sensors={isReadOnly ? [] : sensors} collisionDetection={closestCenter}
           onDragStart={isReadOnly ? undefined : handleDragStart} onDragEnd={isReadOnly ? undefined : handleDragEnd}>
           <div className="flex gap-3 h-full" style={{ minWidth: "max-content" }}>
@@ -328,11 +341,15 @@ export default function KanbanPage() {
         <div className="mb-4 p-3 rounded-xl flex items-center gap-3" style={{ background: "rgba(249,115,22,.08)", border: "1px solid rgba(249,115,22,.2)" }}>
           <ShieldCheck size={20} className="text-orange-500 flex-shrink-0" />
           <p className="text-sm" style={{ color: "var(--text2)" }}>
-            Entrega finalizada! Registre a avaliação de qualidade operacional antes de continuar.
+            Finalizado! Registre a avaliação de qualidade operacional antes de continuar.
           </p>
         </div>
         {qualityEntregaId && (
-          <QualityScoring entregaId={qualityEntregaId} onSave={() => { setQualityEntregaId(null); toast.success("Avaliação salva!"); }} />
+          <QualityScoring 
+            entregaId={qualityEntregaId.startsWith("rota_") ? undefined : qualityEntregaId} 
+            rotaId={qualityEntregaId.startsWith("rota_") ? qualityEntregaId.replace("rota_", "") : undefined} 
+            onSave={() => { setQualityEntregaId(null); toast.success("Avaliação salva!"); }} 
+          />
         )}
       </Modal>
     </>
@@ -345,10 +362,8 @@ function ColDropZone({ col, entregas, colKey, children }: {
   const { setNodeRef, isOver } = useDroppable({ id: colKey });
 
   return (
-    <div className="flex flex-col rounded-xl transition-all"
+    <div className="flex flex-col rounded-xl transition-all w-[240px] min-w-[240px] sm:w-[260px] sm:min-w-[260px]"
       style={{
-        width: "260px",
-        minWidth: "260px",
         background: isOver ? "rgba(249,115,22,.03)" : "var(--surface)",
         border: `1px solid ${isOver ? "rgba(249,115,22,.3)" : "var(--border)"}`,
       }}>

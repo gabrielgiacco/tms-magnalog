@@ -134,7 +134,7 @@ export default function PortalPage() {
               <table className="w-full border-collapse">
                 <thead>
                   <tr>
-                    {["NF / Série", "Emitente", "Destinatário", "Cidade", "Volumes", "Peso", "Emissão", "Entrega", "Status"].map((h) => (
+                    {["NF / Série", "Emitente", "Destinatário", "Cidade", "Volumes", "Peso", "Emissão", "Chegada", "Entrega", "Status"].map((h) => (
                       <th key={h} className="text-left px-4 py-3 text-[10px] uppercase tracking-widest font-normal font-mono"
                         style={{ color: "var(--text3)", borderBottom: "1px solid var(--border)" }}>{h}</th>
                     ))}
@@ -157,6 +157,9 @@ export default function PortalPage() {
                       <td className="px-4 py-3 font-mono text-xs">{n.volumes}</td>
                       <td className="px-4 py-3 font-mono text-xs">{formatWeight(n.pesoBruto)}</td>
                       <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--text3)" }}>{formatDate(n.dataEmissao)}</td>
+                      <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--text3)" }}>
+                        {n.entrega?.dataChegada ? formatDate(n.entrega.dataChegada) : "—"}
+                      </td>
                       <td className="px-4 py-3">
                         {n.entrega ? (
                           <div>

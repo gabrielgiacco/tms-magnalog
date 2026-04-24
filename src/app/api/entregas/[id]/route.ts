@@ -88,7 +88,46 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return { ...nfSemXml, produtos, infAdicionais, infFisco, emitente };
   });
 
-  return NextResponse.json({ ...entrega, notas: notasComProdutos });
+  // Compute armazenagem automatically from TabelaArmazenagem per fornecedor/emitente das NFs
+  let armazenagemCalc: any = null;
+  if (entrega.quantidadePaletes > 0 && entrega.notas.length > 0) {
+    const emitentesCnpjs = Array.from(new Set(entrega.notas.map((n: any) => n.emitenteCnpj).filter(Boolean))) as string[];
+    if (emitentesCnpjs.length > 0) {
+      const tabelas = await prisma.tabelaArmazenagem.findMany({
+        where: { cnpjCliente: { in: emitentesCnpjs } },
+      });
+      if (tabelas.length > 0) {
+        const MS_PER_DAY = 1000 * 60 * 60 * 24;
+        const entrada = entrega.dataChegada || entrega.createdAt;
+        const saida = entrega.dataEntrega || new Date();
+        const dataEntrada = new Date(entrada); dataEntrada.setHours(0, 0, 0, 0);
+        const dataSaida = new Date(saida); dataSaida.setHours(0, 0, 0, 0);
+        const diasDecorridos = Math.max(0, Math.floor((dataSaida.getTime() - dataEntrada.getTime()) / MS_PER_DAY));
+
+        const porFornecedor = tabelas.map((t: any) => {
+          const diasCobraveis = Math.max(0, diasDecorridos - (t.diasFree || 0));
+          const valorCalculado = diasCobraveis * (t.valorPaleteDia || 0) * (entrega.quantidadePaletes || 0);
+          return {
+            cnpjFornecedor: t.cnpjCliente,
+            nomeFornecedor: t.nomeCliente,
+            diasFree: t.diasFree,
+            valorPaleteDia: t.valorPaleteDia,
+            diasCobraveis,
+            valorCalculado,
+          };
+        });
+
+        armazenagemCalc = {
+          diasDecorridos,
+          emAberto: !entrega.dataEntrega,
+          fornecedores: porFornecedor,
+          valorTotal: porFornecedor.reduce((s: number, f: any) => s + f.valorCalculado, 0),
+        };
+      }
+    }
+  }
+
+  return NextResponse.json({ ...entrega, notas: notasComProdutos, armazenagemCalc });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
@@ -130,7 +169,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       const moto = await prisma.motorista.findUnique({ where: { id: data.motoristaId }, select: { tipo: true, valorDiaria: true } });
       if (moto) {
         if (moto.tipo === "FROTA") data.valorMotorista = 0;
-        else if (moto.tipo === "DIARIA") data.valorMotorista = moto.valorDiaria || 0;
+        else if (moto.tipo === "DIARIA") {
+          // Verificar se já existe outra rota ou entrega direta para este motorista na mesma data
+          const entregaAtual = await prisma.entrega.findUnique({ where: { id: params.id }, select: { dataAgendada: true } });
+          const entregaDate = data.dataAgendada || entregaAtual?.dataAgendada || new Date();
+          const diaInicio = new Date(entregaDate); diaInicio.setHours(0,0,0,0);
+          const diaFim = new Date(entregaDate); diaFim.setHours(23,59,59,999);
+          const [rotasMesmoDia, entregasMesmoDia] = await Promise.all([
+            prisma.rota.count({ where: { motoristaId: data.motoristaId, data: { gte: diaInicio, lte: diaFim }, status: { not: "CANCELADA" } } }),
+            prisma.entrega.count({ where: { id: { not: params.id }, motoristaId: data.motoristaId, rotaId: null, dataAgendada: { gte: diaInicio, lte: diaFim }, status: { notIn: ["PROGRAMADO", "EM_SEPARACAO"] } } }),
+          ]);
+          data.valorMotorista = (rotasMesmoDia + entregasMesmoDia) === 0 ? (moto.valorDiaria || 0) : 0;
+        }
       }
     }
   }

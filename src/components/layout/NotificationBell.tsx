@@ -45,7 +45,7 @@ export function NotificationBell() {
             tipo: "atrasada",
             titulo: `${data.kpis.atrasadas} entrega(s) atrasada(s)`,
             subtitulo: "Prazo vencido e não entregue",
-            href: "/entregas?status=EM_ROTA",
+            href: "/entregas?atrasadas=true",
             ts: now,
             lida: false,
           });

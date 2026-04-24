@@ -94,31 +94,31 @@ export default function FrotaPage() {
 
   return (
     <>
-      <Topbar title="Gerenciamento de Frota" subtitle={`${motoristas.length} motoristas · ${veiculos.length} veículos`}
+      <Topbar title="Frota" subtitle={`${motoristas.length} motoristas · ${veiculos.length} veículos`}
         actions={
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={openNewMot}><UserIcon size={14}/> Novo Motorista</Button>
-            <Button onClick={openNewVei}><TruckIcon size={14}/> Novo Veículo</Button>
+            <Button variant="ghost" size="sm" onClick={openNewMot}><UserIcon size={14}/> <span className="hidden sm:inline">Novo Motorista</span><span className="sm:hidden">Motorista</span></Button>
+            <Button size="sm" onClick={openNewVei}><TruckIcon size={14}/> <span className="hidden sm:inline">Novo Veículo</span><span className="sm:hidden">Veículo</span></Button>
           </div>
         }
       />
 
       {/* Tabs */}
-      <div className="flex gap-4 px-6 pt-4" style={{ borderBottom: "1px solid var(--border)" }}>
+      <div className="flex gap-4 px-3 sm:px-6 pt-3 sm:pt-4" style={{ borderBottom: "1px solid var(--border)" }}>
         <button className={`pb-3 text-sm font-semibold transition-all border-b-2 px-1 ${tab === "motoristas" ? "text-blue-600 border-blue-600" : "text-slate-500 border-transparent hover:text-slate-800"}`} onClick={() => setTab("motoristas")}>
-          👤 Motoristas ({motoristas.length})
+          Motoristas ({motoristas.length})
         </button>
         <button className={`pb-3 text-sm font-semibold transition-all border-b-2 px-1 ${tab === "veiculos" ? "text-blue-600 border-blue-600" : "text-slate-500 border-transparent hover:text-slate-800"}`} onClick={() => setTab("veiculos")}>
-          🚛 Veículos ({veiculos.length})
+          Veículos ({veiculos.length})
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6">
         {loading ? <Loading /> : tab === "motoristas" ? (
-          motoristas.length === 0 ? <Empty icon="👤" text="Nenhum motorista" /> : (
-            <div className="grid grid-cols-4 gap-4">
+          motoristas.length === 0 ? <Empty icon="" text="Nenhum motorista" /> : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {motoristas.map((m) => (
-                <Card key={m.id} className={`text-center transition-all ${!m.ativo ? "opacity-50" : "hover:-translate-y-0.5"}`}>
+                <Card key={m.id} className={`text-center transition-all p-3 sm:p-5 ${!m.ativo ? "opacity-50" : "hover:-translate-y-0.5"}`}>
                   <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-black text-white mx-auto mb-3"
                     style={{ background: "linear-gradient(135deg, var(--accent), #8b5cf6)" }}>
                     {getInitials(m.nome)}
@@ -143,21 +143,21 @@ export default function FrotaPage() {
           )
         ) : (
           veiculos.length === 0 ? <Empty icon="🚛" text="Nenhum veículo" /> : (
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {veiculos.map((v) => {
                 const tipo = TIPOS[v.tipo] || { label: v.tipo, icon: "🚛", color: "#64748b" };
                 return (
-                  <Card key={v.id} className={`transition-all ${!v.ativo ? "opacity-50" : "hover:-translate-y-0.5"}`}>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+                  <Card key={v.id} className={`transition-all p-3 sm:p-5 ${!v.ativo ? "opacity-50" : "hover:-translate-y-0.5"}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-xl sm:text-2xl"
                         style={{ background: `${tipo.color}15`, border: `1px solid ${tipo.color}30` }}>{tipo.icon}</div>
-                      <span className={`text-[10px] font-mono ${v.ativo ? "text-emerald-500" : "text-red-500"}`}>{v.ativo ? "Ativo" : "Inativo"}</span>
+                      <span className={`text-[9px] sm:text-[10px] font-mono ${v.ativo ? "text-emerald-500" : "text-red-500"}`}>{v.ativo ? "Ativo" : "Inativo"}</span>
                     </div>
-                    <div className="font-head text-xl font-black tracking-widest mb-1" style={{ color: tipo.color }}>{v.placa}</div>
-                    <div className="text-sm font-semibold mb-1">{tipo.label}</div>
-                    {v.motorista && <div className="text-[11px] mb-2 px-2 py-1 bg-blue-50 text-blue-700 rounded-md inline-flex items-center gap-1.5"><UserIcon size={10}/> {v.motorista.nome}</div>}
+                    <div className="font-head text-base sm:text-xl font-black tracking-widest mb-1 truncate" style={{ color: tipo.color }}>{v.placa}</div>
+                    <div className="text-xs sm:text-sm font-semibold mb-1">{tipo.label}</div>
+                    {v.motorista && <div className="text-[10px] sm:text-[11px] mb-2 px-2 py-1 bg-blue-50 text-blue-700 rounded-md inline-flex items-center gap-1.5 max-w-full truncate"><UserIcon size={10}/> <span className="truncate">{v.motorista.nome}</span></div>}
                     <div className="flex items-center gap-4 mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
-                      <span className="text-[10px] font-mono ml-auto" style={{ color: "var(--text3)" }}>{v._count?.entregas ?? 0} fretes</span>
+                      <span className="text-[9px] sm:text-[10px] font-mono ml-auto" style={{ color: "var(--text3)" }}>{v._count?.entregas ?? 0} fretes</span>
                     </div>
                     <div className="mt-3"><Button variant="ghost" size="sm" className="w-full" onClick={() => openEditVei(v)}><Edit2 size={12}/> Editar</Button></div>
                   </Card>

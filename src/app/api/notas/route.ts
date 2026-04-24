@@ -52,14 +52,28 @@ export async function PATCH(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const body = await req.json();
-  const { id, entregaId } = body;
+  const { id, ids, entregaId } = body;
 
-  const nota = await prisma.notaFiscal.update({
-    where: { id },
+  // Support bulk linking: ids (array) or single id
+  const notaIds: string[] = ids && Array.isArray(ids) ? ids : id ? [id] : [];
+  if (notaIds.length === 0) {
+    return NextResponse.json({ error: "Nenhuma nota informada" }, { status: 400 });
+  }
+
+  // Collect old entregaIds to recalculate their totals after unlinking
+  const oldNotas = await prisma.notaFiscal.findMany({
+    where: { id: { in: notaIds } },
+    select: { entregaId: true },
+  });
+  const oldEntregaIds = Array.from(new Set(oldNotas.map(n => n.entregaId).filter(Boolean))) as string[];
+
+  // Update all notas
+  await prisma.notaFiscal.updateMany({
+    where: { id: { in: notaIds } },
     data: { entregaId: entregaId || null },
   });
 
-  // If associating with an entrega, update entrega totals
+  // Recalculate totals for the target entrega
   if (entregaId) {
     const notasEntrega = await prisma.notaFiscal.findMany({
       where: { entregaId },
@@ -74,5 +88,21 @@ export async function PATCH(req: NextRequest) {
     });
   }
 
-  return NextResponse.json(nota);
+  // Recalculate totals for any old entregas that lost notas
+  for (const oldId of oldEntregaIds) {
+    if (oldId === entregaId) continue;
+    const notasRestantes = await prisma.notaFiscal.findMany({
+      where: { entregaId: oldId },
+      select: { pesoBruto: true, volumes: true },
+    });
+    await prisma.entrega.update({
+      where: { id: oldId },
+      data: {
+        pesoTotal: notasRestantes.reduce((s: number, n: any) => s + n.pesoBruto, 0),
+        volumeTotal: notasRestantes.reduce((s: number, n: any) => s + n.volumes, 0),
+      },
+    });
+  }
+
+  return NextResponse.json({ updated: notaIds.length });
 }

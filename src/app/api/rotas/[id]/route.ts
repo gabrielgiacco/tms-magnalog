@@ -40,7 +40,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       const moto = await prisma.motorista.findUnique({ where: { id: data.motoristaId }, select: { tipo: true, valorDiaria: true } });
       if (moto) {
         if (moto.tipo === "FROTA") data.valorMotorista = 0;
-        else if (moto.tipo === "DIARIA") data.valorMotorista = moto.valorDiaria || 0;
+        else if (moto.tipo === "DIARIA") {
+          // Buscar a data da rota atual para verificar se já existe diária no mesmo dia
+          const rotaAtual = await prisma.rota.findUnique({ where: { id: params.id }, select: { data: true } });
+          const rotaDate = body.data ? new Date(body.data) : rotaAtual?.data || new Date();
+          const diaInicio = new Date(rotaDate); diaInicio.setHours(0,0,0,0);
+          const diaFim = new Date(rotaDate); diaFim.setHours(23,59,59,999);
+          const [rotasMesmoDia, entregasMesmoDia] = await Promise.all([
+            prisma.rota.count({ where: { id: { not: params.id }, motoristaId: data.motoristaId, data: { gte: diaInicio, lte: diaFim }, status: { not: "CANCELADA" } } }),
+            prisma.entrega.count({ where: { motoristaId: data.motoristaId, rotaId: null, dataAgendada: { gte: diaInicio, lte: diaFim }, status: { notIn: ["PROGRAMADO", "EM_SEPARACAO"] } } }),
+          ]);
+          data.valorMotorista = (rotasMesmoDia + entregasMesmoDia) === 0 ? (moto.valorDiaria || 0) : 0;
+        }
       }
     }
   }

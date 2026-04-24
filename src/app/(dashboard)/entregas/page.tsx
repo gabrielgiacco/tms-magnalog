@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import {
   Topbar,
@@ -12,7 +13,7 @@ import {
 import { formatCurrency, formatDate, formatWeight, formatCNPJ } from "@/lib/utils";
 import {
   Plus, Filter, RefreshCw, Search, Eye, ChevronLeft, ChevronRight,
-  Package, MapPin, User, Truck, Trash2, ArrowUp, ArrowDown, ArrowUpDown, X,
+  Package, MapPin, User, Truck, Trash2, ArrowUp, ArrowDown, ArrowUpDown, X, Calendar,
 } from "lucide-react";
 
 /* ── Dynamic Filter Types ────────────────────────────────────────── */
@@ -72,6 +73,9 @@ function SortTh({ col, label, sortBy, sortOrder, onSort }: {
 export default function EntregasPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
+  const userRole = (session?.user as any)?.role;
+  const isReadOnly = userRole === "CONFERENTE";
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -114,6 +118,30 @@ export default function EntregasPage() {
 
   const [showFiltros, setShowFiltros] = useState(urlFilters ? true : (initialized?.showFiltros ?? false));
   const [dynamicFilters, setDynamicFilters] = useState<DynamicFilter[]>(urlFilters ?? initialized?.dynamicFilters ?? []);
+  const [atrasadas, setAtrasadas] = useState(searchParams.get("atrasadas") === "true");
+  const [agendadaDe, setAgendadaDe] = useState<string>(initialized?.agendadaDe ?? "");
+  const [agendadaAte, setAgendadaAte] = useState<string>(initialized?.agendadaAte ?? "");
+
+  // Re-sync from URL when searchParams change (e.g. notification click while already on page)
+  useEffect(() => {
+    const urlAtrasadas = searchParams.get("atrasadas") === "true";
+    setAtrasadas(urlAtrasadas);
+    if (urlAtrasadas) {
+      setDynamicFilters([]);
+      setAgendadaDe("");
+      setAgendadaAte("");
+      setShowFiltros(false);
+      setPage(1);
+      return;
+    }
+    const newFilters = getFiltersFromURL();
+    if (newFilters) {
+      setDynamicFilters(newFilters);
+      setShowFiltros(true);
+      setPage(1);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Tri-state sort: null → "asc" → "desc" → null
   const [sortBy, setSortBy] = useState<string | null>(initialized?.sortBy ?? null);
@@ -137,6 +165,8 @@ export default function EntregasPage() {
   }
   function clearAllFilters() {
     setDynamicFilters([]);
+    setAgendadaDe("");
+    setAgendadaAte("");
     setPage(1);
   }
 
@@ -145,10 +175,12 @@ export default function EntregasPage() {
     sessionStorage.setItem("entregas_filters", JSON.stringify({
       search, mostrarFinalizados, showFiltros,
       dynamicFilters,
+      agendadaDe, agendadaAte,
       sortBy, sortOrder, page,
     }));
   }, [search, mostrarFinalizados, showFiltros,
       dynamicFilters,
+      agendadaDe, agendadaAte,
       sortBy, sortOrder, page]);
 
   function toggleSort(col: string) {
@@ -183,12 +215,19 @@ export default function EntregasPage() {
       limit: "50",
       mostrarFinalizados: String(mostrarFinalizados),
     });
+    if (atrasadas) params.set("atrasadas", "true");
     if (debouncedSearch) params.set("cliente", debouncedSearch);
     // Apply dynamic filters — each filter appends its field/value to the query
     for (const f of dynamicFilters) {
       if (f.value.trim()) {
         params.append(f.field, f.value.trim());
       }
+    }
+    // Date agendada range filter
+    if (agendadaDe || agendadaAte) {
+      params.set("apenasAgendadas", "true");
+      if (agendadaDe) params.set("dataInicio", agendadaDe);
+      if (agendadaAte) params.set("dataFim", agendadaAte);
     }
     if (sortBy && sortOrder) { params.set("sortBy", sortBy); params.set("sortOrder", sortOrder); }
 
@@ -198,7 +237,7 @@ export default function EntregasPage() {
     setTotal(data.total || 0);
     setPages(data.pages || 1);
     setLoading(false);
-  }, [page, debouncedSearch, mostrarFinalizados, dynamicFilters, sortBy, sortOrder]);
+  }, [page, debouncedSearch, mostrarFinalizados, dynamicFilters, sortBy, sortOrder, atrasadas, agendadaDe, agendadaAte]);
 
   useEffect(() => { fetchEntregas(); }, [fetchEntregas]);
 
@@ -258,7 +297,7 @@ export default function EntregasPage() {
   }
 
   const hojeStr = new Date().toISOString().split("T")[0];
-  const atrasadas = entregas.filter((e) => {
+  const atrasadasCount = entregas.filter((e) => {
     if (!e.dataAgendada || ["ENTREGUE", "FINALIZADO"].includes(e.status)) return false;
     const dataStr = new Date(e.dataAgendada).toISOString().split("T")[0];
     return dataStr < hojeStr;
@@ -269,26 +308,34 @@ export default function EntregasPage() {
       <Topbar
         title="Entregas"
         subtitle={`${total} registro${total !== 1 ? "s" : ""} encontrado${total !== 1 ? "s" : ""}`}
-        actions={
+        actions={!isReadOnly ?
           <Button onClick={() => setShowModal(true)}>
             <Plus size={15} /> Nova Entrega
           </Button>
-        }
+        : undefined}
       />
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {/* Alert atrasadas */}
-        {atrasadas > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm"
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
+        {/* Filtro atrasadas ativo (via notificação) */}
+        {atrasadas && (
+          <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm"
             style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.25)", color: "#ef4444" }}>
-            ⚠️ <strong>{atrasadas}</strong> entrega(s) com prazo vencido nesta página
+            <span>Filtrando: <strong>Entregas atrasadas</strong> (prazo vencido e não entregue)</span>
+            <button onClick={() => { setAtrasadas(false); router.replace("/entregas"); }} className="ml-2 hover:opacity-70"><X size={14} /></button>
+          </div>
+        )}
+        {/* Alert atrasadas na página */}
+        {!atrasadas && atrasadasCount > 0 && (
+          <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm"
+            style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.25)", color: "#ef4444" }}>
+            <strong>{atrasadasCount}</strong> entrega(s) com prazo vencido nesta pagina
           </div>
         )}
 
         {/* Filters */}
-        <Card className="p-4">
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 min-w-[200px]">
+        <Card className="p-3 sm:p-4">
+          <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
+            <div className="relative flex-1 min-w-0 w-full sm:w-auto sm:min-w-[200px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
               <input
                 value={search}
@@ -308,21 +355,56 @@ export default function EntregasPage() {
                 className="accent-orange-500 w-3.5 h-3.5" />
               Mostrar finalizados
             </label>
-            <Button variant="ghost" size="sm" onClick={addFilter}
-              className={dynamicFilters.length > 0 ? "bg-orange-50 text-orange-600" : ""}>
-              <Filter size={13} /> Filtros {dynamicFilters.length > 0 ? `(${dynamicFilters.length})` : ""}
+            <Button variant="ghost" size="sm" onClick={() => setShowFiltros((v) => !v)}
+              className={(dynamicFilters.length > 0 || agendadaDe || agendadaAte) ? "bg-orange-50 text-orange-600" : ""}>
+              <Filter size={13} /> Filtros {(() => {
+                const count = dynamicFilters.length + ((agendadaDe || agendadaAte) ? 1 : 0);
+                return count > 0 ? `(${count})` : "";
+              })()}
             </Button>
             <Button variant="ghost" size="sm" onClick={fetchEntregas}>
               <RefreshCw size={13} /> Atualizar
             </Button>
           </div>
 
-          {/* Dynamic Filters */}
-          {dynamicFilters.length > 0 && (
-            <div className="mt-4 pt-4 space-y-2" style={{ borderTop: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between mb-2">
+          {/* Filter Panel (date + dynamic filters) */}
+          {(showFiltros || dynamicFilters.length > 0 || agendadaDe || agendadaAte) && (
+            <div className="mt-4 pt-4 space-y-3" style={{ borderTop: "1px solid var(--border)" }}>
+              {/* Data Agendada */}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text3)" }}>
+                  <Calendar size={11} /> Data agendada
+                </div>
+                <input
+                  type="date"
+                  value={agendadaDe}
+                  onChange={(e) => { setAgendadaDe(e.target.value); setPage(1); }}
+                  className="px-2.5 py-1.5 rounded-lg text-xs outline-none"
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}
+                />
+                <span className="text-xs" style={{ color: "var(--text3)" }}>até</span>
+                <input
+                  type="date"
+                  value={agendadaAte}
+                  onChange={(e) => { setAgendadaAte(e.target.value); setPage(1); }}
+                  className="px-2.5 py-1.5 rounded-lg text-xs outline-none"
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}
+                />
+                {(agendadaDe || agendadaAte) && (
+                  <button
+                    onClick={() => { setAgendadaDe(""); setAgendadaAte(""); setPage(1); }}
+                    className="text-[11px] font-medium px-2 py-1 rounded-lg transition-all hover:bg-red-50"
+                    style={{ color: "#ef4444" }}
+                  >
+                    <X size={11} className="inline -mt-px mr-0.5" /> Limpar data
+                  </button>
+                )}
+              </div>
+
+              {/* Dynamic Filters Header */}
+              <div className="flex items-center justify-between pt-2" style={{ borderTop: "1px solid var(--border)" }}>
                 <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5" style={{ color: "var(--text3)" }}>
-                  <Filter size={11} /> Filtros ativos ({dynamicFilters.length})
+                  <Filter size={11} /> Filtros {dynamicFilters.length > 0 ? `ativos (${dynamicFilters.length})` : "por campo"}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -344,10 +426,10 @@ export default function EntregasPage() {
                 const opt = FILTER_OPTIONS.find((o) => o.value === f.field);
                 return (
                   <div key={f.id}
-                    className="flex items-center gap-2 p-2.5 rounded-xl transition-all animate-in slide-in-from-top-1"
+                    className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-2.5 rounded-xl transition-all animate-in slide-in-from-top-1"
                     style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
                     {/* Connector label */}
-                    <span className="text-[10px] font-bold uppercase w-6 text-center flex-shrink-0"
+                    <span className="text-[10px] font-bold uppercase w-6 text-center flex-shrink-0 hidden sm:block"
                       style={{ color: "var(--text3)" }}>
                       {idx === 0 ? "" : "E"}
                     </span>
@@ -356,7 +438,7 @@ export default function EntregasPage() {
                     <select
                       value={f.field}
                       onChange={(e) => updateFilter(f.id, { field: e.target.value, value: "" })}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium outline-none flex-shrink-0 cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium outline-none flex-shrink-0 cursor-pointer w-full sm:w-auto"
                       style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)", minWidth: "140px" }}>
                       {FILTER_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>{o.label}</option>
@@ -364,7 +446,7 @@ export default function EntregasPage() {
                     </select>
 
                     {/* Operator label */}
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded flex-shrink-0"
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded flex-shrink-0 hidden sm:inline"
                       style={{ background: "rgba(249,115,22,0.1)", color: "#f97316" }}>
                       contém
                     </span>
@@ -412,6 +494,45 @@ export default function EntregasPage() {
         <Card className="p-0 overflow-hidden">
           {loading ? <Loading /> : entregas.length === 0 ? <Empty icon="📦" text="Nenhuma entrega encontrada" /> : (
             <>
+              {/* Mobile: card list */}
+              <div className="block md:hidden divide-y" style={{ borderColor: "var(--border)" }}>
+                {entregas.map((e) => {
+                  const dataStr = e.dataAgendada ? new Date(e.dataAgendada).toISOString().split("T")[0] : null;
+                  const isAtrasada = dataStr && dataStr < hojeStr && !["ENTREGUE", "FINALIZADO"].includes(e.status);
+                  return (
+                    <div key={e.id} onClick={() => router.push(`/entregas/${e.id}`)}
+                      className="p-3 cursor-pointer active:bg-slate-50 transition-colors"
+                      style={isAtrasada ? { borderLeft: "3px solid #ef4444" } : {}}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-mono text-[11px] font-bold" style={{ color: "var(--accent)" }}>
+                          {e.notas?.length > 0 ? e.notas.map((n: any) => `NF ${n.numero}`).join(", ") : e.codigo}
+                        </span>
+                        <StatusBadge status={e.status} />
+                      </div>
+                      <div className="text-sm font-semibold truncate">{e.razaoSocial}</div>
+                      <div className="flex items-center gap-3 mt-1 text-[11px]" style={{ color: "var(--text3)" }}>
+                        <span>{e.cidade}{e.uf ? ` - ${e.uf}` : ""}</span>
+                        {e.motorista?.nome && <span><Truck size={10} className="inline mr-0.5" />{e.motorista.nome}</span>}
+                      </div>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <div className="flex items-center gap-2 text-[11px]" style={{ color: "var(--text3)" }}>
+                          {e.volumeTotal > 0 && <span>{e.volumeTotal} vol</span>}
+                          {e.pesoTotal > 0 && <span>{formatWeight(e.pesoTotal)}</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {e.valorFrete > 0 && <span className="text-[11px] font-mono" style={{ color: "#10b981" }}>{formatCurrency(e.valorFrete)}</span>}
+                          <span className={`text-[11px] font-mono ${isAtrasada ? "text-red-400 font-bold" : ""}`} style={!isAtrasada ? { color: "var(--text3)" } : {}}>
+                            {formatDate(e.dataAgendada)}{isAtrasada ? " !" : ""}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop: table */}
+              <div className="hidden md:block">
               <Table>
                 <thead>
                   <tr>
@@ -500,12 +621,14 @@ export default function EntregasPage() {
                         <Td><span className="text-xs font-mono" style={{ color: "#10b981" }}>{formatCurrency(e.valorFrete)}</span></Td>
                         <Td>
                           <div className="flex items-center gap-1">
-                            <button className="p-1.5 rounded-lg hover:opacity-70 transition-all"
-                              style={{ background: "var(--surface2)", color: "#ef4444" }}
-                              onClick={(ev) => { ev.stopPropagation(); deleteEntrega(e.id); }}
-                              title="Excluir (Somente Admin)">
-                              <Trash2 size={13} />
-                            </button>
+                            {!isReadOnly && (
+                              <button className="p-1.5 rounded-lg hover:opacity-70 transition-all"
+                                style={{ background: "var(--surface2)", color: "#ef4444" }}
+                                onClick={(ev) => { ev.stopPropagation(); deleteEntrega(e.id); }}
+                                title="Excluir (Somente Admin)">
+                                <Trash2 size={13} />
+                              </button>
+                            )}
                             <button className="p-1.5 rounded-lg hover:opacity-70 transition-all"
                               style={{ background: "var(--surface2)", color: "var(--text2)" }}
                               onClick={(ev) => { ev.stopPropagation(); router.push(`/entregas/${e.id}`); }}
@@ -519,6 +642,7 @@ export default function EntregasPage() {
                   })}
                 </tbody>
               </Table>
+              </div>
 
               {/* Pagination */}
               {pages > 1 && (
@@ -542,13 +666,13 @@ export default function EntregasPage() {
       </div>
 
       {/* Modal Nova Entrega */}
-      <Modal open={showModal} onClose={() => { setShowModal(false); setForm({ ...BLANK_FORM }); }} title="📦 Nova Entrega" size="lg">
-        <div className="grid grid-cols-2 gap-4">
+      <Modal open={showModal} onClose={() => { setShowModal(false); setForm({ ...BLANK_FORM }); }} title="Nova Entrega" size="lg">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Input label="CNPJ *" value={form.cnpj} onChange={(e) => set("cnpj", e.target.value)} placeholder="00.000.000/0000-00" />
           <Input label="Razão Social *" value={form.razaoSocial} onChange={(e) => set("razaoSocial", e.target.value)} />
           <Input label="Cidade *" value={form.cidade} onChange={(e) => set("cidade", e.target.value)} />
           <Input label="UF" value={form.uf} onChange={(e) => set("uf", e.target.value)} maxLength={2} />
-          <Input label="Endereço" value={form.endereco} onChange={(e) => set("endereco", e.target.value)} className="col-span-2" />
+          <Input label="Endereço" value={form.endereco} onChange={(e) => set("endereco", e.target.value)} className="sm:col-span-2" />
           <Input label="Bairro" value={form.bairro} onChange={(e) => set("bairro", e.target.value)} />
           <Input label="CEP" value={form.cep} onChange={(e) => set("cep", e.target.value)} />
           <Input label="Data Chegada" type="date" value={form.dataChegada} onChange={(e) => set("dataChegada", e.target.value)} />
@@ -560,9 +684,9 @@ export default function EntregasPage() {
             {veiculos.map((v) => <option key={v.id} value={v.id}>{v.placa} — {v.tipo}</option>)}
           </Select>
 
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <div className="text-[10px] font-mono uppercase tracking-widest mb-3" style={{ color: "var(--text3)", borderTop: "1px solid var(--border)", paddingTop: "12px" }}>Financeiro</div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Input label="Valor Frete" type="number" step="0.01" value={form.valorFrete} onChange={(e) => set("valorFrete", e.target.value)} placeholder="0,00" />
               <Input label="Descarga" type="number" step="0.01" value={form.valorDescarga} onChange={(e) => set("valorDescarga", e.target.value)} placeholder="0,00" />
               <Input label="Armazenagem" type="number" step="0.01" value={form.valorArmazenagem} onChange={(e) => set("valorArmazenagem", e.target.value)} placeholder="0,00" />
@@ -570,7 +694,7 @@ export default function EntregasPage() {
             </div>
           </div>
 
-          <Textarea label="Observações" value={form.observacoes} onChange={(e) => set("observacoes", e.target.value)} className="col-span-2" />
+          <Textarea label="Observações" value={form.observacoes} onChange={(e) => set("observacoes", e.target.value)} className="sm:col-span-2" />
         </div>
 
         <div className="flex justify-end gap-3 mt-6 pt-4" style={{ borderTop: "1px solid var(--border)" }}>

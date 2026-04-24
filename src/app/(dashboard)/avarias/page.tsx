@@ -198,6 +198,15 @@ export default function AvariasPage() {
     setProdutosSelecionados(prev => prev.map(p => p._idx === idx ? { ...p, quantidadeAvaria: qtd } : p));
   }
 
+  function toggleAllProdutos() {
+    const allSelected = nfProdutos.length > 0 && nfProdutos.every((_, idx) => produtosSelecionados.some(p => p._idx === idx));
+    if (allSelected) {
+      setProdutosSelecionados([]);
+    } else {
+      setProdutosSelecionados(nfProdutos.map((p, idx) => ({ ...p, _idx: idx, quantidadeAvaria: p.quantidade })));
+    }
+  }
+
   async function handleCreate() {
     if (!form.descricao) { toast.error("Preencha a descrição"); return; }
     setCreating(true);
@@ -321,19 +330,19 @@ export default function AvariasPage() {
 
   return (
     <>
-      <Topbar title="Avarias / Devoluções" subtitle="Controle de mercadorias com ocorrência"
-        actions={<Button onClick={() => { resetForm(); setShowCreate(true); }}><Plus size={15} /> Nova Avaria</Button>} />
+      <Topbar title="Avarias" subtitle="Controle de mercadorias com ocorrência"
+        actions={<Button size="sm" onClick={() => { resetForm(); setShowCreate(true); }}><Plus size={14} /> <span className="hidden sm:inline">Nova Avaria</span><span className="sm:hidden">Nova</span></Button>} />
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4">
         {/* Tabs */}
-        <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
+        <div className="flex gap-1 p-1 rounded-xl w-full sm:w-fit" style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
           {([
             { key: "dashboard", label: "Dashboard", icon: BarChart2 },
             { key: "registros", label: "Registros", icon: List },
             { key: "devolucoes", label: "Devoluções", icon: FileText },
           ] as const).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.key ? "bg-orange-500/10 text-orange-500 shadow-sm" : "text-[var(--text2)] hover:bg-[var(--surface)]"}`}>
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${tab === t.key ? "bg-orange-500/10 text-orange-500 shadow-sm" : "text-[var(--text2)] hover:bg-[var(--surface)]"}`}>
               <t.icon size={14} /> {t.label}
             </button>
           ))}
@@ -344,7 +353,7 @@ export default function AvariasPage() {
           loadingResumo ? <Loading /> : resumo && (
             <div className="space-y-4">
               {/* KPI Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-4">
                 <KpiCard label="Este Mês" value={resumo.totalMes} icon={AlertTriangle} color="#ef4444" />
                 <KpiCard label="Pendentes" value={resumo.pendentes} icon={Package} color="#f97316" />
                 <KpiCard label="Resolvidas" value={resumo.resolvidas} icon={TrendingUp} color="#10b981" />
@@ -411,35 +420,67 @@ export default function AvariasPage() {
         {/* REGISTROS TAB */}
         {tab === "registros" && (
           <>
-            <Card className="p-4 flex flex-wrap gap-3 items-center">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
-                <input value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Buscar código, NF, cliente, motorista..."
-                  className="w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none"
-                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} />
+            <Card className="p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3 items-stretch sm:items-center">
+                <div className="relative flex-1 min-w-[160px]">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text3)" }} />
+                  <input value={search} onChange={e => setSearch(e.target.value)}
+                    placeholder="Buscar código, NF, cliente..."
+                    className="w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none"
+                    style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} />
+                </div>
+                <div className="grid grid-cols-3 sm:flex gap-2 sm:gap-3">
+                  <select value={filterTipo} onChange={e => { setFilterTipo(e.target.value); setPage(1); }}
+                    className="px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm outline-none min-w-0" style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}>
+                    <option value="">Tipos</option>
+                    {Object.entries(TIPO_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                  <select value={filterFase} onChange={e => { setFilterFase(e.target.value); setPage(1); }}
+                    className="px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm outline-none min-w-0" style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}>
+                    <option value="">Fases</option>
+                    {Object.entries(FASE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                  <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
+                    className="px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm outline-none min-w-0" style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}>
+                    <option value="">Status</option>
+                    {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
               </div>
-              <select value={filterTipo} onChange={e => { setFilterTipo(e.target.value); setPage(1); }}
-                className="px-3 py-2 rounded-lg text-sm outline-none" style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}>
-                <option value="">Todos os tipos</option>
-                {Object.entries(TIPO_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-              <select value={filterFase} onChange={e => { setFilterFase(e.target.value); setPage(1); }}
-                className="px-3 py-2 rounded-lg text-sm outline-none" style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}>
-                <option value="">Todas as fases</option>
-                {Object.entries(FASE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-              <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
-                className="px-3 py-2 rounded-lg text-sm outline-none" style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}>
-                <option value="">Todos os status</option>
-                {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-              <Button variant="ghost" size="sm" onClick={fetchAvarias}><RefreshCw size={13} /></Button>
             </Card>
 
             <Card className="p-0 overflow-hidden">
               {loading ? <Loading /> : avarias.length === 0 ? <Empty icon="⚠️" text="Nenhuma avaria registrada" /> : (
                 <>
+                  {/* Mobile card list */}
+                  <div className="block md:hidden divide-y" style={{ borderColor: "var(--border)" }}>
+                    {avarias.map(a => (
+                      <div key={a.id} onClick={() => router.push(`/avarias/${a.id}`)}
+                        className="p-3 cursor-pointer hover:bg-[#1e293b] transition-colors"
+                        style={{ borderBottom: "1px solid var(--border)" }}>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <span className="font-mono text-xs font-bold" style={{ color: "var(--accent)" }}>{a.codigo}</span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: `${TIPO_COLORS[a.tipo]}15`, color: TIPO_COLORS[a.tipo], border: `1px solid ${TIPO_COLORS[a.tipo]}30` }}>
+                                {TIPO_LABELS[a.tipo] || a.tipo}
+                              </span>
+                              <StatusBadge status={a.status} />
+                            </div>
+                            <div className="text-xs font-medium truncate">{a.entrega?.razaoSocial || (a.notaFiscal ? `NF ${a.notaFiscal.numero}` : "Sem vínculo")}</div>
+                          </div>
+                          <span className="text-xs font-mono font-bold text-red-500 flex-shrink-0">{formatCurrency(a.valorPrejuizo)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 text-[10px] font-mono" style={{ color: "var(--text3)" }}>
+                          <span>{formatDate(a.dataOcorrencia)} · {FASE_LABELS[a.fase] || a.fase}</span>
+                          <span className="truncate max-w-[50%]">{a.motorista?.nome || "—"}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop table */}
+                  <div className="hidden md:block">
                   <Table>
                     <thead>
                       <tr>
@@ -482,6 +523,7 @@ export default function AvariasPage() {
                       ))}
                     </tbody>
                   </Table>
+                  </div>
                   {pages > 1 && (
                     <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: "1px solid var(--border)" }}>
                       <span className="text-xs font-mono" style={{ color: "var(--text3)" }}>Página {page} de {pages} · {total} registros</span>
@@ -500,11 +542,11 @@ export default function AvariasPage() {
         {/* DEVOLUÇÕES TAB */}
         {tab === "devolucoes" && (
           <>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {selectedDevIds.length > 0 && (
                 <Button size="sm" onClick={() => { setShowBulkSaida(true); setBulkForm({ status: "RETIRADO", motorista: "", placa: "", transportadora: "", observacoes: "" }); }}>
-                  <LogOut size={14} /> Dar Saída ({selectedDevIds.length})
+                  <LogOut size={14} /> <span className="hidden sm:inline">Dar Saída</span> ({selectedDevIds.length})
                 </Button>
               )}
               {allDevolucoes.some(d => d.status === "PENDENTE") && (
@@ -517,8 +559,8 @@ export default function AvariasPage() {
                 </button>
               )}
             </div>
-            <Button onClick={() => { setNfdFiles([]); setShowImportNFD(true); }}>
-              <Upload size={15} /> Importar NF Devolução
+            <Button size="sm" onClick={() => { setNfdFiles([]); setShowImportNFD(true); }}>
+              <Upload size={14} /> <span className="hidden sm:inline">Importar NF Devolução</span><span className="sm:hidden">Importar NFD</span>
             </Button>
           </div>
 
@@ -536,14 +578,14 @@ export default function AvariasPage() {
                   <Card key={group.avaria.id} className="p-0 overflow-hidden">
                     {/* Group Header */}
                     <div
-                      className="flex items-center justify-between p-4 cursor-pointer hover:bg-[#1e293b] transition-colors"
+                      className="flex items-center justify-between p-3 sm:p-4 cursor-pointer hover:bg-[#1e293b] transition-colors"
                       onClick={() => setExpandedDevGroups(prev =>
                         prev.includes(group.avaria.id)
                           ? prev.filter((id: string) => id !== group.avaria.id)
                           : [...prev, group.avaria.id]
                       )}
                     >
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
                         {/* Group checkbox */}
                         {pendentes.length > 0 && (
                           <button onClick={ev => {
@@ -559,8 +601,8 @@ export default function AvariasPage() {
                           </button>
                         )}
 
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(234,179,8,.08)", border: "1px solid rgba(234,179,8,.15)" }}>
-                          <Package size={18} className="text-yellow-500" />
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(234,179,8,.08)", border: "1px solid rgba(234,179,8,.15)" }}>
+                          <Package size={16} className="text-yellow-500" />
                         </div>
 
                         <div className="flex-1 min-w-0">
@@ -660,7 +702,7 @@ export default function AvariasPage() {
 
                         <div className="divide-y" style={{ borderColor: "var(--border)" }}>
                           {group.nfds.map((d: any) => (
-                            <div key={d.id} className="flex items-center gap-4 px-4 py-3 hover:bg-[#1e293b] transition-colors cursor-pointer"
+                            <div key={d.id} className="flex items-center gap-2 sm:gap-4 px-3 sm:px-4 py-3 hover:bg-[#1e293b] transition-colors cursor-pointer"
                               onClick={() => router.push(`/avarias/${d.avariaId}`)}>
                               {/* Checkbox */}
                               <div className="flex-shrink-0">
@@ -672,29 +714,40 @@ export default function AvariasPage() {
                               </div>
 
                               {/* NF icon */}
-                              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.15)" }}>
+                              <div className="hidden sm:flex w-8 h-8 rounded-lg items-center justify-center flex-shrink-0" style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.15)" }}>
                                 <FileText size={14} className="text-blue-500" />
                               </div>
 
                               {/* NF info */}
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-mono text-xs font-bold" style={{ color: "#3b82f6" }}>NF {d.numero}</span>
-                                  {d.serie && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--surface2)", color: "var(--text3)" }}>Série {d.serie}</span>}
+                                  {d.serie && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--surface2)", color: "var(--text3)" }}>S{d.serie}</span>}
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full sm:hidden" style={{
+                                    background: d.status === "PENDENTE" ? "rgba(249,115,22,.1)" : d.status === "DESCARTADO" ? "rgba(107,114,128,.1)" : "rgba(16,185,129,.1)",
+                                    color: d.status === "PENDENTE" ? "#f97316" : d.status === "DESCARTADO" ? "#6b7280" : "#10b981",
+                                  }}>
+                                    {STATUS_DEV_LABELS[d.status] || d.status}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5 sm:hidden text-[10px] font-mono" style={{ color: "var(--text3)" }}>
+                                  <span className="text-emerald-600 font-bold">{formatCurrency(d.valorNota)}</span>
+                                  <span>·</span>
+                                  <span>{formatDate(d.dataEmissao || d.createdAt)}</span>
                                 </div>
                                 {d.chaveAcesso && (
-                                  <div className="text-[10px] font-mono truncate mt-0.5" style={{ color: "var(--text3)" }}>{d.chaveAcesso}</div>
+                                  <div className="hidden sm:block text-[10px] font-mono truncate mt-0.5" style={{ color: "var(--text3)" }}>{d.chaveAcesso}</div>
                                 )}
                               </div>
 
-                              {/* Value + Date */}
-                              <div className="text-right flex-shrink-0">
+                              {/* Value + Date - desktop */}
+                              <div className="hidden sm:block text-right flex-shrink-0">
                                 <div className="text-xs font-mono font-bold text-emerald-600">{formatCurrency(d.valorNota)}</div>
                                 <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>{formatDate(d.dataEmissao || d.createdAt)}</div>
                               </div>
 
-                              {/* Status */}
-                              <div className="flex-shrink-0">
+                              {/* Status - desktop */}
+                              <div className="hidden sm:block flex-shrink-0">
                                 <span className="text-[10px] font-bold px-2 py-1 rounded-full" style={{
                                   background: d.status === "PENDENTE" ? "rgba(249,115,22,.1)" : d.status === "DESCARTADO" ? "rgba(107,114,128,.1)" : "rgba(16,185,129,.1)",
                                   color: d.status === "PENDENTE" ? "#f97316" : d.status === "DESCARTADO" ? "#6b7280" : "#10b981",
@@ -730,7 +783,7 @@ export default function AvariasPage() {
             <option value="DEVOLVIDO_CLIENTE">Devolvido ao Cliente</option>
             <option value="DESCARTADO">Descartado</option>
           </Select>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Input label="Transportadora" value={bulkForm.transportadora} onChange={e => setBulkForm(f => ({ ...f, transportadora: e.target.value }))} placeholder="Nome da transportadora..." />
             <Input label="Motorista" value={bulkForm.motorista} onChange={e => setBulkForm(f => ({ ...f, motorista: e.target.value }))} placeholder="Nome do motorista..." />
             <Input label="Placa do Veículo" value={bulkForm.placa} onChange={e => setBulkForm(f => ({ ...f, placa: e.target.value.toUpperCase() }))} placeholder="ABC-1234" />
@@ -803,7 +856,7 @@ export default function AvariasPage() {
       <Modal open={showCreate} onClose={() => { setShowCreate(false); resetForm(); }} title={`Nova Avaria — Etapa ${step}/3`} size="xl">
         {step === 1 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <Select label="Tipo *" value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
                 {Object.entries(TIPO_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </Select>
@@ -876,11 +929,20 @@ export default function AvariasPage() {
 
         {step === 2 && (
           <div className="space-y-4">
-            <p className="text-xs" style={{ color: "var(--text3)" }}>Selecione os produtos afetados{selectedNF ? ` da NF ${selectedNF.numero}` : ""}. Se não houver NF vinculada, pule esta etapa.</p>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs" style={{ color: "var(--text3)" }}>Selecione os produtos afetados{selectedNF ? ` da NF ${selectedNF.numero}` : ""} e ajuste a quantidade. Se não houver NF vinculada, pule esta etapa.</p>
+              {nfProdutos.length > 0 && (
+                <Button size="sm" variant="ghost" onClick={toggleAllProdutos}>
+                  {nfProdutos.every((_, idx) => produtosSelecionados.some(p => p._idx === idx))
+                    ? "Desmarcar tudo"
+                    : "Selecionar tudo"}
+                </Button>
+              )}
+            </div>
 
             {nfProdutos.length > 0 ? (
-              <div className="max-h-[40vh] overflow-y-auto rounded-lg border" style={{ borderColor: "var(--border)" }}>
-                <table className="w-full text-xs">
+              <div className="max-h-[40vh] overflow-auto rounded-lg border" style={{ borderColor: "var(--border)" }}>
+                <table className="w-full text-xs min-w-[560px]">
                   <thead>
                     <tr style={{ background: "var(--surface2)" }}>
                       <th className="px-2 py-2 text-left w-8"></th>
@@ -952,7 +1014,7 @@ export default function AvariasPage() {
             {/* Summary */}
             <div className="p-4 rounded-lg space-y-2" style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
               <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Resumo</h4>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 <div><span className="text-slate-400">Tipo:</span> <strong>{TIPO_LABELS[form.tipo]}</strong></div>
                 <div><span className="text-slate-400">Fase:</span> <strong>{FASE_LABELS[form.fase]}</strong></div>
                 <div><span className="text-slate-400">Data:</span> <strong>{form.dataOcorrencia}</strong></div>
@@ -978,14 +1040,14 @@ export default function AvariasPage() {
 
 function KpiCard({ label, value, icon: Icon, color }: { label: string; value: string | number; icon: any; color: string }) {
   return (
-    <Card className="p-4">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}10`, border: `1px solid ${color}20` }}>
-          <Icon size={18} style={{ color }} />
+    <Card className="p-3 sm:p-4">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}10`, border: `1px solid ${color}20` }}>
+          <Icon size={16} style={{ color }} />
         </div>
-        <div>
-          <div className="text-[10px] font-mono uppercase tracking-widest text-slate-400">{label}</div>
-          <div className="text-lg font-bold font-mono" style={{ color }}>{value}</div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-slate-400 truncate">{label}</div>
+          <div className="text-sm sm:text-lg font-bold font-mono truncate" style={{ color }}>{value}</div>
         </div>
       </div>
     </Card>

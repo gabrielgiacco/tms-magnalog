@@ -7,7 +7,7 @@ import { Button, Card, Loading, StatusBadge, Modal, Select, Textarea } from "@/c
 import { formatCurrency, formatDate, formatCNPJ } from "@/lib/utils";
 import {
   ChevronLeft, AlertTriangle, Package, MapPin, User, Truck, FileText,
-  CheckCircle2, Clock, XCircle, Upload, Eye, ChevronDown, ChevronUp, Box, Info, Weight, LogOut, Square, CheckSquare,
+  CheckCircle2, Clock, XCircle, Upload, Eye, ChevronDown, ChevronUp, Box, Info, Weight, LogOut, Square, CheckSquare, Trash2,
 } from "lucide-react";
 import { formatWeight } from "@/lib/utils";
 import toast from "react-hot-toast";
@@ -114,6 +114,18 @@ export default function AvariaDetailPage() {
     finally { setSaving(false); }
   }
 
+  async function handleDeleteDev(devId: string) {
+    if (!confirm("Excluir esta NF de devolução da ocorrência? Esta ação não pode ser desfeita.")) return;
+    try {
+      const res = await fetch(`/api/avarias/${id}/devolucao?devolucaoId=${devId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("NF excluída");
+      setSelectedDevs(prev => prev.filter(x => x !== devId));
+      const updated = await fetch(`/api/avarias/${id}`).then(r => r.json());
+      setAvaria(updated);
+    } catch { toast.error("Erro ao excluir"); }
+  }
+
   function toggleDev(devId: string) {
     setSelectedDevs(prev => prev.includes(devId) ? prev.filter(x => x !== devId) : [...prev, devId]);
   }
@@ -173,7 +185,7 @@ export default function AvariaDetailPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4">
         {/* Status Flow */}
         <Card>
           <div className="flex items-center justify-between mb-4">
@@ -379,7 +391,8 @@ export default function AvariaDetailPage() {
               <div className="divide-y" style={{ borderColor: "var(--border)" }}>
                 {avaria.devolucoes.map((d: any) => (
                   <NFDevCard key={d.id} dev={d} selected={selectedDevs.includes(d.id)} onToggle={() => toggleDev(d.id)}
-                    onUpdateStatus={() => { setShowDevStatus(d); setDevForm({ status: "DEVOLVIDO_CLIENTE", responsavel: "", observacoes: "" }); }} />
+                    onUpdateStatus={() => { setShowDevStatus(d); setDevForm({ status: "DEVOLVIDO_CLIENTE", responsavel: "", observacoes: "" }); }}
+                    onDelete={() => handleDeleteDev(d.id)} />
                 ))}
               </div>
             </div>
@@ -396,7 +409,7 @@ export default function AvariaDetailPage() {
               Registre os dados de quem retirou a mercadoria para controle interno.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Transportadora</label>
               <input value={saidaForm.transportadora} onChange={e => setSaidaForm(f => ({ ...f, transportadora: e.target.value }))}
@@ -499,7 +512,7 @@ function Field({ label, value, mono, color }: { label: string; value?: string | 
   );
 }
 
-function NFDevCard({ dev, selected, onToggle, onUpdateStatus }: { dev: any; selected: boolean; onToggle: () => void; onUpdateStatus: () => void }) {
+function NFDevCard({ dev, selected, onToggle, onUpdateStatus, onDelete }: { dev: any; selected: boolean; onToggle: () => void; onUpdateStatus: () => void; onDelete: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const hasProdutos = dev.produtos && dev.produtos.length > 0;
   const hasInfoAdicional = dev.infAdicionais && dev.infAdicionais.trim();
@@ -509,7 +522,7 @@ function NFDevCard({ dev, selected, onToggle, onUpdateStatus }: { dev: any; sele
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50/50 transition-colors" onClick={() => setExpanded(!expanded)}>
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 cursor-pointer hover:bg-slate-50/50 transition-colors" onClick={() => setExpanded(!expanded)}>
         {/* Checkbox */}
         {isPendente && (
           <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className="flex-shrink-0">
@@ -518,19 +531,24 @@ function NFDevCard({ dev, selected, onToggle, onUpdateStatus }: { dev: any; sele
         )}
         {!isPendente && <div className="w-[18px]" />}
 
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(245,158,11,.08)", border: "1px solid rgba(245,158,11,.15)" }}>
+        <div className="hidden sm:flex w-9 h-9 rounded-xl items-center justify-center flex-shrink-0" style={{ background: "rgba(245,158,11,.08)", border: "1px solid rgba(245,158,11,.15)" }}>
           <FileText size={16} className="text-amber-500" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <span className="text-sm font-bold" style={{ color: "#3b82f6" }}>NF {dev.numero}</span>
-            {dev.serie && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--surface2)", color: "var(--text3)" }}>Série {dev.serie}</span>}
+            {dev.serie && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--surface2)", color: "var(--text3)" }}>S{dev.serie}</span>}
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{
               background: dev.status === "PENDENTE" ? "rgba(249,115,22,.1)" : dev.status === "DESCARTADO" ? "rgba(107,114,128,.1)" : "rgba(16,185,129,.1)",
               color: dev.status === "PENDENTE" ? "#f97316" : dev.status === "DESCARTADO" ? "#6b7280" : "#10b981",
             }}>{STATUS_DEV_LABELS[dev.status]}</span>
           </div>
           <div className="text-xs truncate" style={{ color: "var(--text2)" }}>{dev.emitenteRazao}</div>
+          <div className="md:hidden text-[10px] font-mono mt-1" style={{ color: "var(--text3)" }}>
+            <span className="text-emerald-600 font-bold">{formatCurrency(dev.valorNota)}</span>
+            <span className="mx-1">·</span>{dev.volumes || 0} vol
+            <span className="mx-1">·</span>{dev.produtos?.length || 0} itens
+          </div>
         </div>
 
         <div className="hidden md:flex items-center gap-6 flex-shrink-0">
@@ -547,6 +565,10 @@ function NFDevCard({ dev, selected, onToggle, onUpdateStatus }: { dev: any; sele
               Status
             </button>
           )}
+          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Excluir NF da ocorrência"
+            className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
+            <Trash2 size={14} />
+          </button>
           {expanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
         </div>
       </div>

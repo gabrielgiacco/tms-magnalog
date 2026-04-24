@@ -4,27 +4,40 @@ import toast from "react-hot-toast";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button, Card, Loading, Empty, Modal, Input, Table, Th, Td, Tr } from "@/components/ui";
 import { formatCurrency, formatDate, formatCNPJ } from "@/lib/utils";
-import { RefreshCw, FilePlus, CheckCircle2, Eye, ChevronDown, ChevronUp, Search } from "lucide-react";
+import { RefreshCw, FilePlus, CheckCircle2, Eye, ChevronDown, ChevronUp, Search, Warehouse, Truck, Receipt, Trash2 } from "lucide-react";
+
+type TabKey = "fretes" | "armazenagem" | "faturas";
 
 export default function FaturamentoPage() {
+  const [tab, setTab] = useState<TabKey>("fretes");
+
   const [ctesAgrupados, setCtesAgrupados] = useState<any[]>([]);
+  const [armazenagemPendente, setArmazenagemPendente] = useState<any[]>([]);
   const [faturas, setFaturas] = useState<any[]>([]);
+  const [faturasArm, setFaturasArm] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Seleção de CTes para faturar
+  // Seleção de CTes
   const [selectedCteIds, setSelectedCteIds] = useState<string[]>([]);
   const [faturandoClient, setFaturandoClient] = useState<any>(null);
-
-  // Modal gerar fatura
   const [showGerarModal, setShowGerarModal] = useState(false);
   const [dataVencimento, setDataVencimento] = useState("");
   const [gerando, setGerando] = useState(false);
 
-  // Modal detalhe fatura
-  const [faturaDetalhe, setFaturaDetalhe] = useState<any>(null);
+  // Seleção de armazenagem
+  const [selectedArmIds, setSelectedArmIds] = useState<string[]>([]);
+  const [armFornecedor, setArmFornecedor] = useState<any>(null);
+  const [showGerarArmModal, setShowGerarArmModal] = useState(false);
+  const [dataVencArm, setDataVencArm] = useState("");
+  const [gerandoArm, setGerandoArm] = useState(false);
 
-  // Expandir grupo
+  // Modal detalhe
+  const [faturaDetalhe, setFaturaDetalhe] = useState<any>(null);
+  const [faturaArmDetalhe, setFaturaArmDetalhe] = useState<any>(null);
+
+  // Expandir grupos
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const [expandedArmazens, setExpandedArmazens] = useState<string[]>([]);
 
   // Pesquisa
   const [search, setSearch] = useState("");
@@ -37,12 +50,16 @@ export default function FaturamentoPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [resCtes, resFaturas] = await Promise.all([
+      const [resCtes, resFaturas, resArm, resFatArm] = await Promise.all([
         fetch("/api/financeiro/ctes-pendentes").then((r) => r.json()),
         fetch("/api/financeiro/faturas").then((r) => r.json()),
+        fetch("/api/financeiro/armazenagem-pendente").then((r) => r.json()),
+        fetch("/api/financeiro/faturas-armazenagem").then((r) => r.json()),
       ]);
       setCtesAgrupados(Array.isArray(resCtes) ? resCtes : []);
       setFaturas(Array.isArray(resFaturas) ? resFaturas : []);
+      setArmazenagemPendente(Array.isArray(resArm) ? resArm : []);
+      setFaturasArm(Array.isArray(resFatArm) ? resFatArm : []);
     } catch {
       toast.error("Erro ao carregar dados");
     } finally {
@@ -53,9 +70,7 @@ export default function FaturamentoPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   function toggleGroup(cnpj: string) {
-    setExpandedGroups((prev) =>
-      prev.includes(cnpj) ? prev.filter((c) => c !== cnpj) : [...prev, cnpj]
-    );
+    setExpandedGroups((prev) => prev.includes(cnpj) ? prev.filter((c) => c !== cnpj) : [...prev, cnpj]);
   }
 
   function toggleCte(cteId: string, grupo: any) {
@@ -76,16 +91,13 @@ export default function FaturamentoPage() {
       toast.error("Selecione CT-es do mesmo tomador");
       return;
     }
-    const ids = grupo.ctes.map((c: any) => c.id);
-    setSelectedCteIds(ids);
+    setSelectedCteIds(grupo.ctes.map((c: any) => c.id));
     setFaturandoClient(grupo);
   }
 
   function openGerarModal() {
     if (selectedCteIds.length === 0) return;
-    // Default: 30 dias a partir de hoje
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
+    const d = new Date(); d.setDate(d.getDate() + 30);
     setDataVencimento(d.toISOString().slice(0, 10));
     setShowGerarModal(true);
   }
@@ -106,15 +118,11 @@ export default function FaturamentoPage() {
       });
       if (!res.ok) throw new Error();
       toast.success("Fatura gerada com sucesso!");
-      setSelectedCteIds([]);
-      setFaturandoClient(null);
-      setShowGerarModal(false);
+      setSelectedCteIds([]); setFaturandoClient(null); setShowGerarModal(false);
       fetchData();
     } catch {
       toast.error("Erro ao gerar fatura");
-    } finally {
-      setGerando(false);
-    }
+    } finally { setGerando(false); }
   }
 
   async function handleDarBaixa(faturaId: string) {
@@ -127,12 +135,89 @@ export default function FaturamentoPage() {
       if (!res.ok) throw new Error();
       toast.success("Fatura marcada como PAGA");
       fetchData();
-    } catch {
-      toast.error("Erro ao dar baixa");
-    }
+    } catch { toast.error("Erro ao dar baixa"); }
   }
 
-  // Filtrar por pesquisa
+  // Armazenagem handlers
+  function toggleArmEntrega(entregaId: string, grupo: any) {
+    if (armFornecedor && armFornecedor.cnpjCliente !== grupo.cnpjCliente) {
+      toast.error("Selecione entregas do mesmo fornecedor");
+      return;
+    }
+    setSelectedArmIds((prev) => {
+      const next = prev.includes(entregaId) ? prev.filter((id) => id !== entregaId) : [...prev, entregaId];
+      if (next.length === 0) setArmFornecedor(null);
+      else setArmFornecedor(grupo);
+      return next;
+    });
+  }
+
+  function selectAllFromArmGroup(grupo: any) {
+    if (armFornecedor && armFornecedor.cnpjCliente !== grupo.cnpjCliente) {
+      toast.error("Selecione entregas do mesmo fornecedor");
+      return;
+    }
+    setSelectedArmIds(grupo.entregas.map((e: any) => e.id));
+    setArmFornecedor(grupo);
+  }
+
+  function openGerarArmModal() {
+    if (selectedArmIds.length === 0) return;
+    const d = new Date(); d.setDate(d.getDate() + 30);
+    setDataVencArm(d.toISOString().slice(0, 10));
+    setShowGerarArmModal(true);
+  }
+
+  async function handleGerarArmFatura() {
+    if (!armFornecedor || selectedArmIds.length === 0) return;
+    setGerandoArm(true);
+    try {
+      const res = await fetch("/api/financeiro/faturas-armazenagem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fornecedorCnpj: armFornecedor.cnpjCliente,
+          entregaIds: selectedArmIds,
+          dataVencimento: dataVencArm || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Erro");
+      }
+      toast.success("Fatura de armazenagem gerada!");
+      setSelectedArmIds([]); setArmFornecedor(null); setShowGerarArmModal(false);
+      fetchData();
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao gerar fatura");
+    } finally { setGerandoArm(false); }
+  }
+
+  async function handleDarBaixaArm(id: string) {
+    try {
+      const res = await fetch("/api/financeiro/faturas-armazenagem", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: "PAGA" }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Fatura marcada como PAGA");
+      fetchData();
+    } catch { toast.error("Erro ao dar baixa"); }
+  }
+
+  async function handleExcluirArm(id: string) {
+    if (!confirm("Excluir fatura? Os itens voltarão para a lista de pendentes.")) return;
+    try {
+      const res = await fetch(`/api/financeiro/faturas-armazenagem?id=${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("Fatura excluída");
+      setFaturaArmDetalhe(null);
+      fetchData();
+    } catch { toast.error("Erro ao excluir"); }
+  }
+
+  // Filtros
   const filteredCtes = debouncedSearch
     ? ctesAgrupados.map((g) => {
         const matchGroup = g.tomadorNome?.toLowerCase().includes(debouncedSearch) || g.tomadorCnpj?.includes(debouncedSearch);
@@ -140,11 +225,25 @@ export default function FaturamentoPage() {
           c.numero?.toLowerCase().includes(debouncedSearch) ||
           c.notas?.some((n: any) => n.numero?.toLowerCase().includes(debouncedSearch) || n.destinatarioRazao?.toLowerCase().includes(debouncedSearch))
         );
-        if (matchGroup) return g; // grupo inteiro combina
+        if (matchGroup) return g;
         if (filteredGroupCtes.length === 0) return null;
         return { ...g, ctes: filteredGroupCtes, totalValor: filteredGroupCtes.reduce((s: number, c: any) => s + c.valorReceber, 0) };
       }).filter(Boolean) as any[]
     : ctesAgrupados;
+
+  const filteredArm = debouncedSearch
+    ? armazenagemPendente.map((g) => {
+        const matchGroup = g.nomeCliente?.toLowerCase().includes(debouncedSearch) || g.cnpjCliente?.includes(debouncedSearch);
+        const filteredEntregas = g.entregas.filter((e: any) =>
+          e.codigo?.toLowerCase().includes(debouncedSearch) ||
+          e.destinatarioRazao?.toLowerCase().includes(debouncedSearch) ||
+          e.nfs?.some((n: string) => n.toLowerCase().includes(debouncedSearch))
+        );
+        if (matchGroup) return g;
+        if (filteredEntregas.length === 0) return null;
+        return { ...g, entregas: filteredEntregas, totalValor: filteredEntregas.reduce((s: number, e: any) => s + e.valorCalculado, 0), totalPaletes: filteredEntregas.reduce((s: number, e: any) => s + e.quantidadePaletes, 0) };
+      }).filter(Boolean) as any[]
+    : armazenagemPendente;
 
   const filteredFaturas = debouncedSearch
     ? faturas.filter((f) =>
@@ -155,41 +254,81 @@ export default function FaturamentoPage() {
       )
     : faturas;
 
+  const filteredFaturasArm = debouncedSearch
+    ? faturasArm.filter((f) =>
+        f.numero?.toLowerCase().includes(debouncedSearch) ||
+        f.fornecedorNome?.toLowerCase().includes(debouncedSearch) ||
+        f.fornecedorCnpj?.includes(debouncedSearch) ||
+        f.items?.some((i: any) => i.codigoEntrega?.toLowerCase().includes(debouncedSearch) || i.nfs?.toLowerCase().includes(debouncedSearch))
+      )
+    : faturasArm;
+
   // Totais
   const totalPendenteCtes = ctesAgrupados.reduce((s, g) => s + g.totalValor, 0);
-  const totalFaturasAbertas = faturas.filter((f) => f.status === "ABERTA").reduce((s, f) => s + f.valorTotal, 0);
-  const totalFaturasPagas = faturas.filter((f) => f.status === "PAGA").reduce((s, f) => s + f.valorTotal, 0);
+  const totalArmPendente = armazenagemPendente.reduce((s: number, g: any) => s + g.totalValor, 0);
+  const totalFaturasAbertas = faturas.filter((f) => f.status === "ABERTA").reduce((s, f) => s + f.valorTotal, 0) +
+                              faturasArm.filter((f: any) => f.status === "ABERTA").reduce((s: number, f: any) => s + f.valorTotal, 0);
+  const totalFaturasPagas = faturas.filter((f) => f.status === "PAGA").reduce((s, f) => s + f.valorTotal, 0) +
+                            faturasArm.filter((f: any) => f.status === "PAGA").reduce((s: number, f: any) => s + f.valorTotal, 0);
   const selectedTotal = faturandoClient
     ? faturandoClient.ctes.filter((c: any) => selectedCteIds.includes(c.id)).reduce((s: number, c: any) => s + c.valorReceber, 0)
     : 0;
+  const selectedArmTotal = armFornecedor
+    ? armFornecedor.entregas.filter((e: any) => selectedArmIds.includes(e.id)).reduce((s: number, e: any) => s + e.valorCalculado, 0)
+    : 0;
 
   if (loading) return <><Topbar title="Faturamento" /><Loading /></>;
+
+  const tabBtn = (key: TabKey, label: string, Icon: any, count?: number) => (
+    <button
+      onClick={() => setTab(key)}
+      className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+        tab === key ? "border-[var(--accent)] text-[var(--accent)]" : "border-transparent text-[var(--text3)] hover:text-[var(--text2)]"
+      }`}
+    >
+      <Icon size={14} /> {label}
+      {count !== undefined && count > 0 && (
+        <span className="ml-1 px-1.5 py-0.5 text-[9px] font-mono rounded bg-[var(--surface2)]">{count}</span>
+      )}
+    </button>
+  );
 
   return (
     <>
       <Topbar
         title="Faturamento"
-        subtitle="Controle de fretes a receber"
+        subtitle="Controle de fretes e armazenagem a receber"
         actions={<Button variant="ghost" size="sm" onClick={fetchData}><RefreshCw size={14} /> Atualizar</Button>}
       />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {/* Resumo */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* KPIs */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="p-4">
             <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: "var(--text3)" }}>CT-es Pendentes</div>
             <div className="text-xl font-bold font-mono" style={{ color: "#f97316" }}>{formatCurrency(totalPendenteCtes)}</div>
-            <div className="text-[10px]" style={{ color: "var(--text3)" }}>{ctesAgrupados.reduce((s, g) => s + g.ctes.length, 0)} CT-e(s) sem fatura</div>
+            <div className="text-[10px]" style={{ color: "var(--text3)" }}>{ctesAgrupados.reduce((s, g) => s + g.ctes.length, 0)} CT-e(s)</div>
+          </Card>
+          <Card className="p-4">
+            <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: "var(--text3)" }}>Armazenagem Pendente</div>
+            <div className="text-xl font-bold font-mono" style={{ color: "#3b82f6" }}>{formatCurrency(totalArmPendente)}</div>
+            <div className="text-[10px]" style={{ color: "var(--text3)" }}>
+              {armazenagemPendente.length} fornecedor(es) · {armazenagemPendente.reduce((s: number, g: any) => s + g.totalPaletes, 0)} palete(s)
+            </div>
           </Card>
           <Card className="p-4">
             <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: "var(--text3)" }}>Faturas em Aberto</div>
             <div className="text-xl font-bold font-mono" style={{ color: "#eab308" }}>{formatCurrency(totalFaturasAbertas)}</div>
-            <div className="text-[10px]" style={{ color: "var(--text3)" }}>{faturas.filter((f) => f.status === "ABERTA").length} fatura(s)</div>
+            <div className="text-[10px]" style={{ color: "var(--text3)" }}>
+              {faturas.filter((f) => f.status === "ABERTA").length + faturasArm.filter((f: any) => f.status === "ABERTA").length} fatura(s)
+            </div>
           </Card>
           <Card className="p-4">
             <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: "var(--text3)" }}>Faturas Pagas</div>
             <div className="text-xl font-bold font-mono" style={{ color: "#10b981" }}>{formatCurrency(totalFaturasPagas)}</div>
-            <div className="text-[10px]" style={{ color: "var(--text3)" }}>{faturas.filter((f) => f.status === "PAGA").length} fatura(s)</div>
+            <div className="text-[10px]" style={{ color: "var(--text3)" }}>
+              {faturas.filter((f) => f.status === "PAGA").length + faturasArm.filter((f: any) => f.status === "PAGA").length} fatura(s)
+            </div>
           </Card>
         </div>
 
@@ -199,170 +338,343 @@ export default function FaturamentoPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por CT-e, NF, cliente..."
+            placeholder="Buscar por CT-e, NF, cliente, fornecedor..."
             className="w-full pl-9 pr-3 py-2.5 rounded-lg text-sm outline-none bg-[var(--surface)] border border-[var(--border)] text-[var(--text)]"
           />
         </div>
 
-        {/* Barra de ação quando CTes selecionados */}
-        {selectedCteIds.length > 0 && (
-          <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "rgba(16,185,129,.08)", border: "1px solid rgba(16,185,129,.25)" }}>
-            <div>
-              <span className="text-sm font-semibold" style={{ color: "#10b981" }}>
-                {selectedCteIds.length} CT-e(s) selecionado(s) — {faturandoClient?.tomadorNome}
-              </span>
-              <span className="text-sm font-mono font-bold ml-3" style={{ color: "#10b981" }}>{formatCurrency(selectedTotal)}</span>
+        {/* Tabs */}
+        <div className="flex gap-1 border-b" style={{ borderColor: "var(--border)" }}>
+          {tabBtn("fretes", "Fretes (CT-es)", Truck, ctesAgrupados.reduce((s, g) => s + g.ctes.length, 0))}
+          {tabBtn("armazenagem", "Armazenagem", Warehouse, armazenagemPendente.reduce((s: number, g: any) => s + g.entregas.length, 0))}
+          {tabBtn("faturas", "Faturas", Receipt, faturas.length + faturasArm.length)}
+        </div>
+
+        {/* ─── TAB: FRETES ─────────────────────────────────────── */}
+        {tab === "fretes" && (
+          <>
+            {selectedCteIds.length > 0 && (
+              <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "rgba(16,185,129,.08)", border: "1px solid rgba(16,185,129,.25)" }}>
+                <div>
+                  <span className="text-sm font-semibold" style={{ color: "#10b981" }}>
+                    {selectedCteIds.length} CT-e(s) — {faturandoClient?.tomadorNome}
+                  </span>
+                  <span className="text-sm font-mono font-bold ml-3" style={{ color: "#10b981" }}>{formatCurrency(selectedTotal)}</span>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => { setSelectedCteIds([]); setFaturandoClient(null); }}>Limpar</Button>
+                  <Button size="sm" onClick={openGerarModal}><FilePlus size={14} /> Gerar Fatura</Button>
+                </div>
+              </div>
+            )}
+
+            {filteredCtes.length === 0 ? (
+              <Card><Empty icon="🧾" text={debouncedSearch ? "Nenhum CT-e encontrado" : "Nenhum CT-e pendente de faturamento"} /></Card>
+            ) : (
+              <div className="space-y-3">
+                {filteredCtes.map((g) => {
+                  const expanded = expandedGroups.includes(g.tomadorCnpj);
+                  const allSelected = g.ctes.every((c: any) => selectedCteIds.includes(c.id));
+                  return (
+                    <Card key={g.tomadorCnpj} className="p-0 overflow-hidden">
+                      <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-[var(--surface2)] transition-colors" onClick={() => toggleGroup(g.tomadorCnpj)}>
+                        <div>
+                          <div className="font-semibold text-sm">{g.tomadorNome}</div>
+                          <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>
+                            {formatCNPJ(g.tomadorCnpj)} &bull; {g.ctes.length} CT-e(s) &bull; Total: {formatCurrency(g.totalValor)}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); allSelected ? (setSelectedCteIds([]), setFaturandoClient(null)) : selectAllFromGroup(g); }}>
+                            {allSelected ? "Desmarcar" : "Selecionar Todos"}
+                          </Button>
+                          {expanded ? <ChevronUp size={16} style={{ color: "var(--text3)" }} /> : <ChevronDown size={16} style={{ color: "var(--text3)" }} />}
+                        </div>
+                      </div>
+                      {expanded && (
+                        <div style={{ borderTop: "1px solid var(--border)" }}>
+                          <Table>
+                            <thead>
+                              <tr>
+                                <Th className="w-10"></Th>
+                                <Th>CT-e</Th>
+                                <Th>NFs Vinculadas</Th>
+                                <Th>Emissão</Th>
+                                <Th>Valor a Receber</Th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {g.ctes.map((cte: any) => (
+                                <Tr key={cte.id}>
+                                  <Td>
+                                    <input type="checkbox" className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                                      checked={selectedCteIds.includes(cte.id)}
+                                      onChange={() => toggleCte(cte.id, g)} />
+                                  </Td>
+                                  <Td><span className="font-mono text-xs font-bold">{cte.numero}</span></Td>
+                                  <Td>
+                                    <span className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>
+                                      {cte.notas?.length > 0 ? cte.notas.map((n: any) => n.numero).join(", ") : "—"}
+                                    </span>
+                                  </Td>
+                                  <Td><span className="font-mono text-xs">{formatDate(cte.dataEmissao)}</span></Td>
+                                  <Td><span className="font-mono text-sm font-bold" style={{ color: "#10b981" }}>{formatCurrency(cte.valorReceber)}</span></Td>
+                                </Tr>
+                              ))}
+                            </tbody>
+                          </Table>
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ─── TAB: ARMAZENAGEM ────────────────────────────────── */}
+        {tab === "armazenagem" && (
+          <>
+            {selectedArmIds.length > 0 && (
+              <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.25)" }}>
+                <div>
+                  <span className="text-sm font-semibold" style={{ color: "#3b82f6" }}>
+                    {selectedArmIds.length} entrega(s) — {armFornecedor?.nomeCliente}
+                  </span>
+                  <span className="text-sm font-mono font-bold ml-3" style={{ color: "#3b82f6" }}>{formatCurrency(selectedArmTotal)}</span>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => { setSelectedArmIds([]); setArmFornecedor(null); }}>Limpar</Button>
+                  <Button size="sm" onClick={openGerarArmModal}><FilePlus size={14} /> Gerar Fatura de Armazenagem</Button>
+                </div>
+              </div>
+            )}
+
+            <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>
+              Valores calculados automaticamente pela tabela do fornecedor (configurável em Configurações).
             </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => { setSelectedCteIds([]); setFaturandoClient(null); }}>Limpar</Button>
-              <Button size="sm" onClick={openGerarModal}>
-                <FilePlus size={14} /> Gerar Fatura
-              </Button>
+
+            {filteredArm.length === 0 ? (
+              <Card><Empty icon="📦" text={debouncedSearch ? "Nenhuma armazenagem encontrada" : "Nenhuma armazenagem pendente"} /></Card>
+            ) : (
+              <div className="space-y-3">
+                {filteredArm.map((g: any) => {
+                  const expanded = expandedArmazens.includes(g.cnpjCliente);
+                  const allSelected = g.entregas.every((e: any) => selectedArmIds.includes(e.id));
+                  return (
+                    <Card key={g.cnpjCliente} className="p-0 overflow-hidden">
+                      <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-[var(--surface2)] transition-colors"
+                        onClick={() => setExpandedArmazens((prev) => prev.includes(g.cnpjCliente) ? prev.filter((c) => c !== g.cnpjCliente) : [...prev, g.cnpjCliente])}>
+                        <div>
+                          <div className="font-semibold text-sm flex items-center gap-2">
+                            <Warehouse size={13} className="text-blue-500" />
+                            {g.nomeCliente}
+                          </div>
+                          <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>
+                            {formatCNPJ(g.cnpjCliente)} &bull; {g.entregas.length} entrega(s) &bull; {g.totalPaletes} palete(s)
+                            &bull; Tabela: {formatCurrency(g.valorPaleteDia)}/palete/dia · {g.diasFree} dias free
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Button size="sm" variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); allSelected ? (setSelectedArmIds([]), setArmFornecedor(null)) : selectAllFromArmGroup(g); }}>
+                            {allSelected ? "Desmarcar" : "Selecionar Todos"}
+                          </Button>
+                          <span className="font-mono text-sm font-bold" style={{ color: "#3b82f6" }}>{formatCurrency(g.totalValor)}</span>
+                          {expanded ? <ChevronUp size={16} style={{ color: "var(--text3)" }} /> : <ChevronDown size={16} style={{ color: "var(--text3)" }} />}
+                        </div>
+                      </div>
+                      {expanded && (
+                        <div style={{ borderTop: "1px solid var(--border)" }}>
+                          <Table>
+                            <thead>
+                              <tr>
+                                <Th className="w-10"></Th>
+                                <Th>Entrega</Th>
+                                <Th>Paletes</Th>
+                                <Th>Entrada</Th>
+                                <Th>Saída</Th>
+                                <Th>Dias</Th>
+                                <Th>Cobráveis</Th>
+                                <Th>Valor</Th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {g.entregas.map((e: any) => (
+                                <Tr key={e.id}>
+                                  <Td>
+                                    <input type="checkbox" className="w-4 h-4 accent-blue-500 cursor-pointer"
+                                      checked={selectedArmIds.includes(e.id)}
+                                      onChange={() => toggleArmEntrega(e.id, g)} />
+                                  </Td>
+                                  <Td>
+                                    <div className="text-xs font-mono font-bold">{e.codigo}</div>
+                                    <div className="text-[10px]" style={{ color: "var(--text3)" }}>
+                                      {e.nfs?.length > 0 && <span className="font-mono">NF {e.nfs.join(", ")} · </span>}
+                                      {e.destinatarioRazao || e.razaoSocial} · {e.cidade}
+                                    </div>
+                                  </Td>
+                                  <Td><span className="font-mono text-xs">{e.quantidadePaletes}</span></Td>
+                                  <Td><span className="font-mono text-[10px]">{formatDate(e.dataEntrada)}</span></Td>
+                                  <Td><span className="font-mono text-[10px]">{e.dataSaida ? formatDate(e.dataSaida) : <span style={{ color: "var(--text3)" }}>em aberto</span>}</span></Td>
+                                  <Td><span className="font-mono text-xs">{e.diasDecorridos}</span></Td>
+                                  <Td>
+                                    <span className="font-mono text-xs font-bold" style={{ color: e.diasCobraveis > 0 ? "#f97316" : "var(--text3)" }}>
+                                      {e.diasCobraveis}
+                                    </span>
+                                  </Td>
+                                  <Td><span className="font-mono text-sm font-bold" style={{ color: "#3b82f6" }}>{formatCurrency(e.valorCalculado)}</span></Td>
+                                </Tr>
+                              ))}
+                            </tbody>
+                          </Table>
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ─── TAB: FATURAS ────────────────────────────────────── */}
+        {tab === "faturas" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-sm font-head font-bold mb-3 flex items-center gap-2" style={{ color: "var(--text2)" }}>
+                <Truck size={14} /> Faturas de Frete
+              </h2>
+              <Card className="p-0 overflow-hidden">
+                {filteredFaturas.length === 0 ? (
+                  <Empty icon="💸" text={debouncedSearch ? "Nenhuma fatura encontrada" : "Nenhuma fatura gerada"} />
+                ) : (
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>Fatura</Th>
+                        <Th>Cliente</Th>
+                        <Th>CT-es</Th>
+                        <Th>Vencimento</Th>
+                        <Th>Valor Total</Th>
+                        <Th>Status</Th>
+                        <Th></Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredFaturas.map((f) => (
+                        <Tr key={f.id}>
+                          <Td><span className="font-mono text-xs font-bold">{f.numero}</span></Td>
+                          <Td>
+                            <div className="text-sm font-semibold">{f.clienteNome}</div>
+                            <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>{formatCNPJ(f.clienteCnpj)}</div>
+                          </Td>
+                          <Td><span className="font-mono text-xs">{f._count?.ctes || 0}</span></Td>
+                          <Td>
+                            <span className={`font-mono text-xs ${f.status !== "PAGA" && new Date(f.dataVencimento) < new Date() ? "text-red-500 font-bold" : ""}`}>
+                              {formatDate(f.dataVencimento)}
+                            </span>
+                          </Td>
+                          <Td><span className="font-mono text-sm font-bold" style={{ color: "#10b981" }}>{formatCurrency(f.valorTotal)}</span></Td>
+                          <Td>
+                            <span className={`px-2 py-1 text-[10px] font-bold rounded-lg ${
+                              f.status === "PAGA" ? "bg-emerald-400/10 text-emerald-500 border border-emerald-400/30"
+                              : f.status === "CANCELADA" ? "bg-red-400/10 text-red-400 border border-red-400/30"
+                              : "bg-yellow-400/10 text-yellow-600 border border-yellow-400/30"
+                            }`}>{f.status}</span>
+                          </Td>
+                          <Td>
+                            <div className="flex gap-1.5">
+                              <button onClick={() => setFaturaDetalhe(f)}
+                                className="p-1.5 rounded-lg hover:opacity-70 transition-all"
+                                style={{ background: "var(--surface2)", color: "var(--text2)" }}>
+                                <Eye size={12} />
+                              </button>
+                              {f.status === "ABERTA" && (
+                                <Button size="sm" variant="ghost" onClick={() => handleDarBaixa(f.id)}>
+                                  <CheckCircle2 size={12} /> Baixa
+                                </Button>
+                              )}
+                            </div>
+                          </Td>
+                        </Tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                )}
+              </Card>
+            </div>
+
+            <div>
+              <h2 className="text-sm font-head font-bold mb-3 flex items-center gap-2" style={{ color: "var(--text2)" }}>
+                <Warehouse size={14} /> Faturas de Armazenagem
+              </h2>
+              <Card className="p-0 overflow-hidden">
+                {filteredFaturasArm.length === 0 ? (
+                  <Empty icon="📦" text={debouncedSearch ? "Nenhuma fatura encontrada" : "Nenhuma fatura de armazenagem gerada"} />
+                ) : (
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>Fatura</Th>
+                        <Th>Fornecedor</Th>
+                        <Th>Itens</Th>
+                        <Th>Vencimento</Th>
+                        <Th>Valor Total</Th>
+                        <Th>Status</Th>
+                        <Th></Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredFaturasArm.map((f: any) => (
+                        <Tr key={f.id}>
+                          <Td><span className="font-mono text-xs font-bold">{f.numero}</span></Td>
+                          <Td>
+                            <div className="text-sm font-semibold">{f.fornecedorNome}</div>
+                            <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>{formatCNPJ(f.fornecedorCnpj)}</div>
+                          </Td>
+                          <Td><span className="font-mono text-xs">{f._count?.items ?? f.items?.length ?? 0}</span></Td>
+                          <Td>
+                            <span className={`font-mono text-xs ${f.status !== "PAGA" && new Date(f.dataVencimento) < new Date() ? "text-red-500 font-bold" : ""}`}>
+                              {formatDate(f.dataVencimento)}
+                            </span>
+                          </Td>
+                          <Td><span className="font-mono text-sm font-bold" style={{ color: "#3b82f6" }}>{formatCurrency(f.valorTotal)}</span></Td>
+                          <Td>
+                            <span className={`px-2 py-1 text-[10px] font-bold rounded-lg ${
+                              f.status === "PAGA" ? "bg-emerald-400/10 text-emerald-500 border border-emerald-400/30"
+                              : f.status === "CANCELADA" ? "bg-red-400/10 text-red-400 border border-red-400/30"
+                              : "bg-yellow-400/10 text-yellow-600 border border-yellow-400/30"
+                            }`}>{f.status}</span>
+                          </Td>
+                          <Td>
+                            <div className="flex gap-1.5">
+                              <button onClick={() => setFaturaArmDetalhe(f)}
+                                className="p-1.5 rounded-lg hover:opacity-70 transition-all"
+                                style={{ background: "var(--surface2)", color: "var(--text2)" }}>
+                                <Eye size={12} />
+                              </button>
+                              {f.status === "ABERTA" && (
+                                <Button size="sm" variant="ghost" onClick={() => handleDarBaixaArm(f.id)}>
+                                  <CheckCircle2 size={12} /> Baixa
+                                </Button>
+                              )}
+                            </div>
+                          </Td>
+                        </Tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                )}
+              </Card>
             </div>
           </div>
         )}
-
-        {/* CT-es Pendentes agrupados por tomador */}
-        <div>
-          <h2 className="text-sm font-head font-bold mb-3" style={{ color: "var(--text2)" }}>CT-es Aguardando Faturamento</h2>
-          {filteredCtes.length === 0 ? (
-            <Card><Empty icon="🧾" text={debouncedSearch ? "Nenhum CT-e encontrado" : "Nenhum CT-e pendente de faturamento"} /></Card>
-          ) : (
-            <div className="space-y-3">
-              {filteredCtes.map((g) => {
-                const expanded = expandedGroups.includes(g.tomadorCnpj);
-                const allSelected = g.ctes.every((c: any) => selectedCteIds.includes(c.id));
-                return (
-                  <Card key={g.tomadorCnpj} className="p-0 overflow-hidden">
-                    <div
-                      className="flex items-center justify-between p-4 cursor-pointer hover:bg-[var(--surface2)] transition-colors"
-                      onClick={() => toggleGroup(g.tomadorCnpj)}
-                    >
-                      <div>
-                        <div className="font-semibold text-sm">{g.tomadorNome}</div>
-                        <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>
-                          {formatCNPJ(g.tomadorCnpj)} &bull; {g.ctes.length} CT-e(s) &bull; Total: {formatCurrency(g.totalValor)}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" variant="ghost"
-                          onClick={(e) => { e.stopPropagation(); allSelected ? (setSelectedCteIds([]), setFaturandoClient(null)) : selectAllFromGroup(g); }}>
-                          {allSelected ? "Desmarcar" : "Selecionar Todos"}
-                        </Button>
-                        {expanded ? <ChevronUp size={16} style={{ color: "var(--text3)" }} /> : <ChevronDown size={16} style={{ color: "var(--text3)" }} />}
-                      </div>
-                    </div>
-                    {expanded && (
-                      <div style={{ borderTop: "1px solid var(--border)" }}>
-                        <Table>
-                          <thead>
-                            <tr>
-                              <Th style={{ width: 40 }}></Th>
-                              <Th>CT-e</Th>
-                              <Th>NFs Vinculadas</Th>
-                              <Th>Emissão</Th>
-                              <Th>Valor a Receber</Th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {g.ctes.map((cte: any) => (
-                              <Tr key={cte.id}>
-                                <Td>
-                                  <input
-                                    type="checkbox"
-                                    className="w-4 h-4 accent-emerald-500 cursor-pointer"
-                                    checked={selectedCteIds.includes(cte.id)}
-                                    onChange={() => toggleCte(cte.id, g)}
-                                  />
-                                </Td>
-                                <Td><span className="font-mono text-xs font-bold">{cte.numero}</span></Td>
-                                <Td>
-                                  <span className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>
-                                    {cte.notas?.length > 0 ? cte.notas.map((n: any) => n.numero).join(", ") : "—"}
-                                  </span>
-                                </Td>
-                                <Td><span className="font-mono text-xs">{formatDate(cte.dataEmissao)}</span></Td>
-                                <Td><span className="font-mono text-sm font-bold" style={{ color: "#10b981" }}>{formatCurrency(cte.valorReceber)}</span></Td>
-                              </Tr>
-                            ))}
-                          </tbody>
-                        </Table>
-                      </div>
-                    )}
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Faturas Geradas */}
-        <div>
-          <h2 className="text-sm font-head font-bold mb-3" style={{ color: "var(--text2)" }}>Faturas</h2>
-          <Card className="p-0 overflow-hidden">
-            {filteredFaturas.length === 0 ? (
-              <Empty icon="💸" text={debouncedSearch ? "Nenhuma fatura encontrada" : "Nenhuma fatura gerada"} />
-            ) : (
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>Fatura</Th>
-                    <Th>Cliente</Th>
-                    <Th>CT-es</Th>
-                    <Th>Vencimento</Th>
-                    <Th>Valor Total</Th>
-                    <Th>Status</Th>
-                    <Th></Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredFaturas.map((f) => (
-                    <Tr key={f.id}>
-                      <Td><span className="font-mono text-xs font-bold">{f.numero}</span></Td>
-                      <Td>
-                        <div className="text-sm font-semibold">{f.clienteNome}</div>
-                        <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>{formatCNPJ(f.clienteCnpj)}</div>
-                      </Td>
-                      <Td><span className="font-mono text-xs">{f._count?.ctes || 0}</span></Td>
-                      <Td>
-                        <span className={`font-mono text-xs ${f.status !== "PAGA" && new Date(f.dataVencimento) < new Date() ? "text-red-500 font-bold" : ""}`}>
-                          {formatDate(f.dataVencimento)}
-                        </span>
-                      </Td>
-                      <Td><span className="font-mono text-sm font-bold" style={{ color: "#10b981" }}>{formatCurrency(f.valorTotal)}</span></Td>
-                      <Td>
-                        <span className={`px-2 py-1 text-[10px] font-bold rounded-lg ${
-                          f.status === "PAGA" ? "bg-emerald-400/10 text-emerald-500 border border-emerald-400/30"
-                          : f.status === "CANCELADA" ? "bg-red-400/10 text-red-400 border border-red-400/30"
-                          : "bg-yellow-400/10 text-yellow-600 border border-yellow-400/30"
-                        }`}>
-                          {f.status}
-                        </span>
-                      </Td>
-                      <Td>
-                        <div className="flex gap-1.5">
-                          <button onClick={() => setFaturaDetalhe(f)}
-                            className="p-1.5 rounded-lg hover:opacity-70 transition-all"
-                            style={{ background: "var(--surface2)", color: "var(--text2)" }}>
-                            <Eye size={12} />
-                          </button>
-                          {f.status === "ABERTA" && (
-                            <Button size="sm" variant="ghost" onClick={() => handleDarBaixa(f.id)}>
-                              <CheckCircle2 size={12} /> Baixa
-                            </Button>
-                          )}
-                        </div>
-                      </Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
-            )}
-          </Card>
-        </div>
       </div>
 
-      {/* Modal Gerar Fatura */}
+      {/* Modal Gerar Fatura de Frete */}
       <Modal open={showGerarModal} onClose={() => setShowGerarModal(false)} title="Gerar Fatura" size="sm">
         <div className="space-y-4">
           <div className="p-3 rounded-lg" style={{ background: "var(--surface2)" }}>
@@ -377,13 +689,33 @@ export default function FaturamentoPage() {
         </div>
         <div className="flex justify-end gap-3 mt-6 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
           <Button variant="ghost" onClick={() => setShowGerarModal(false)}>Cancelar</Button>
-          <Button onClick={handleGerarFatura} loading={gerando}>
-            <FilePlus size={14} /> Gerar Fatura
-          </Button>
+          <Button onClick={handleGerarFatura} loading={gerando}><FilePlus size={14} /> Gerar Fatura</Button>
         </div>
       </Modal>
 
-      {/* Modal Detalhe Fatura */}
+      {/* Modal Gerar Fatura de Armazenagem */}
+      <Modal open={showGerarArmModal} onClose={() => setShowGerarArmModal(false)} title="Gerar Fatura de Armazenagem" size="sm">
+        <div className="space-y-4">
+          <div className="p-3 rounded-lg" style={{ background: "var(--surface2)" }}>
+            <div className="text-sm font-semibold">{armFornecedor?.nomeCliente}</div>
+            <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>{formatCNPJ(armFornecedor?.cnpjCliente || "")}</div>
+            <div className="text-[10px] font-mono mt-1" style={{ color: "var(--text3)" }}>
+              {formatCurrency(armFornecedor?.valorPaleteDia || 0)}/palete/dia · {armFornecedor?.diasFree || 0} dias free
+            </div>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-xs" style={{ color: "var(--text2)" }}>{selectedArmIds.length} entrega(s) selecionada(s)</span>
+            <span className="font-mono text-lg font-bold" style={{ color: "#3b82f6" }}>{formatCurrency(selectedArmTotal)}</span>
+          </div>
+          <Input label="Data de Vencimento" type="date" value={dataVencArm} onChange={(e) => setDataVencArm(e.target.value)} />
+        </div>
+        <div className="flex justify-end gap-3 mt-6 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+          <Button variant="ghost" onClick={() => setShowGerarArmModal(false)}>Cancelar</Button>
+          <Button onClick={handleGerarArmFatura} loading={gerandoArm}><FilePlus size={14} /> Gerar Fatura</Button>
+        </div>
+      </Modal>
+
+      {/* Modal Detalhe Fatura Frete */}
       <Modal open={!!faturaDetalhe} onClose={() => setFaturaDetalhe(null)} title={`Fatura ${faturaDetalhe?.numero || ""}`} size="md">
         {faturaDetalhe && (
           <div className="space-y-4">
@@ -424,6 +756,83 @@ export default function FaturamentoPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal Detalhe Fatura Armazenagem */}
+      <Modal open={!!faturaArmDetalhe} onClose={() => setFaturaArmDetalhe(null)} title={`Fatura ${faturaArmDetalhe?.numero || ""}`} size="lg">
+        {faturaArmDetalhe && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-[10px] font-mono uppercase text-slate-400">Fornecedor</div>
+                <div className="text-sm font-semibold">{faturaArmDetalhe.fornecedorNome}</div>
+                <div className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>{formatCNPJ(faturaArmDetalhe.fornecedorCnpj)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase text-slate-400">Vencimento</div>
+                <div className="text-sm font-mono">{formatDate(faturaArmDetalhe.dataVencimento)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase text-slate-400">Valor Total</div>
+                <div className="text-lg font-mono font-bold" style={{ color: "#3b82f6" }}>{formatCurrency(faturaArmDetalhe.valorTotal)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase text-slate-400">Status</div>
+                <span className={`px-2 py-1 text-[10px] font-bold rounded-lg ${faturaArmDetalhe.status === "PAGA" ? "bg-emerald-400/10 text-emerald-500" : "bg-yellow-400/10 text-yellow-600"}`}>
+                  {faturaArmDetalhe.status}
+                </span>
+              </div>
+            </div>
+            {faturaArmDetalhe.items?.length > 0 && (
+              <div>
+                <div className="text-[10px] font-mono uppercase text-slate-400 mb-2">Entregas Cobradas</div>
+                <div className="max-h-[400px] overflow-y-auto">
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>Entrega</Th>
+                        <Th>NFs</Th>
+                        <Th>Paletes</Th>
+                        <Th>Entrada</Th>
+                        <Th>Saída</Th>
+                        <Th>Dias/Cobr.</Th>
+                        <Th>Valor</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {faturaArmDetalhe.items.map((it: any) => (
+                        <Tr key={it.id}>
+                          <Td>
+                            <div className="text-xs font-mono font-bold">{it.codigoEntrega}</div>
+                            <div className="text-[10px]" style={{ color: "var(--text3)" }}>
+                              {it.destinatarioRazao} · {it.cidade}
+                            </div>
+                          </Td>
+                          <Td><span className="font-mono text-[10px]">{it.nfs || "—"}</span></Td>
+                          <Td><span className="font-mono text-xs">{it.paletes}</span></Td>
+                          <Td><span className="font-mono text-[10px]">{it.dataEntrada ? formatDate(it.dataEntrada) : "—"}</span></Td>
+                          <Td><span className="font-mono text-[10px]">{it.dataSaida ? formatDate(it.dataSaida) : <span style={{ color: "var(--text3)" }}>em aberto</span>}</span></Td>
+                          <Td><span className="font-mono text-xs">{it.diasDecorridos}/{it.diasCobraveis}</span></Td>
+                          <Td><span className="font-mono text-xs font-bold" style={{ color: "#3b82f6" }}>{formatCurrency(it.valorCalculado)}</span></Td>
+                        </Tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+              <Button variant="ghost" size="sm" onClick={() => handleExcluirArm(faturaArmDetalhe.id)}>
+                <Trash2 size={12} /> Excluir
+              </Button>
+              {faturaArmDetalhe.status === "ABERTA" && (
+                <Button size="sm" onClick={() => handleDarBaixaArm(faturaArmDetalhe.id)}>
+                  <CheckCircle2 size={12} /> Marcar como PAGA
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </Modal>

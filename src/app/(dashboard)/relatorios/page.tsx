@@ -70,39 +70,41 @@ export default function RelatoriosPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-5">
         {/* Controls */}
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           {/* Tabs */}
-          <div className="flex rounded-xl overflow-hidden" style={{ border:"1px solid var(--border)" }}>
+          <div className="flex rounded-xl overflow-hidden w-full sm:w-auto" style={{ border:"1px solid var(--border)" }}>
             {(["mensal","anual","motoristas"] as const).map((t) => (
               <button key={t} onClick={() => setTab(t)}
-                className="px-4 py-2 text-sm font-semibold transition-all capitalize"
+                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-all capitalize"
                 style={{
                   background: tab === t ? "var(--accent)" : "var(--surface)",
                   color: tab === t ? "white" : "var(--text2)",
                   borderRight: t !== "motoristas" ? "1px solid var(--border)" : "none",
                 }}>
-                {t === "mensal" ? "📅 Mensal" : t === "anual" ? "📊 Anual" : "👤 Motoristas"}
+                {t === "mensal" ? "Mensal" : t === "anual" ? "Anual" : "Motoristas"}
               </button>
             ))}
           </div>
 
-          {/* Year */}
-          <select value={ano} onChange={(e) => setAno(Number(e.target.value))}
-            className="px-3 py-2 rounded-lg text-sm outline-none"
-            style={{ background:"var(--surface2)", border:"1px solid var(--border)", color:"var(--text)" }}>
-            {anos.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-
-          {/* Month (only for mensal/motoristas) */}
-          {tab !== "anual" && (
-            <select value={mes} onChange={(e) => setMes(Number(e.target.value))}
-              className="px-3 py-2 rounded-lg text-sm outline-none"
+          <div className="flex gap-2 w-full sm:w-auto">
+            {/* Year */}
+            <select value={ano} onChange={(e) => setAno(Number(e.target.value))}
+              className="flex-1 sm:flex-none px-3 py-2 rounded-lg text-sm outline-none"
               style={{ background:"var(--surface2)", border:"1px solid var(--border)", color:"var(--text)" }}>
-              {MESES.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+              {anos.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
-          )}
+
+            {/* Month (only for mensal/motoristas) */}
+            {tab !== "anual" && (
+              <select value={mes} onChange={(e) => setMes(Number(e.target.value))}
+                className="flex-1 sm:flex-none px-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background:"var(--surface2)", border:"1px solid var(--border)", color:"var(--text)" }}>
+                {MESES.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+              </select>
+            )}
+          </div>
         </div>
 
         {loading ? <Loading /> : (
@@ -111,29 +113,30 @@ export default function RelatoriosPage() {
             {tab === "mensal" && data && (
               <div className="space-y-5">
                 {/* KPIs */}
-                <div className="grid grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4">
                   {[
                     { label:"Entregas", value: data.entregas, icon:"📦", color:"#f97316" },
                     { label:"Notas Fiscais", value: data.notas, icon:"📄", color:"#3b82f6" },
                     { label:"Receita Frete", value: formatCurrency(data.financeiro?._sum?.valorFrete??0), icon:"💰", color:"#10b981" },
-                    { label:"Ticket Médio", value: formatCurrency(data.financeiro?._avg?.valorFrete??0), icon:"📈", color:"#8b5cf6" },
-                    { label:"Saldo Pend.", value: formatCurrency(data.financeiro?._sum?.saldoPendente??0), icon:"⏳", color:"#f59e0b" },
+                    { label:"Custo Motorista", value: formatCurrency(data.financeiro?._sum?.custoMotorista??0), icon:"🚛", color:"#ef4444" },
+                    { label:"Margem", value: `${formatCurrency(data.financeiro?.margem??0)} (${data.financeiro?.margemPercent??0}%)`, icon:"📊", color: (data.financeiro?.margem??0)>=0?"#10b981":"#ef4444" },
+                    { label:"Taxa Entrega", value: `${data.financeiro?.taxaEntrega??0}%`, icon:"✅", color: (data.financeiro?.taxaEntrega??0)>=80?"#10b981":(data.financeiro?.taxaEntrega??0)>=60?"#f59e0b":"#ef4444" },
                   ].map((k) => (
-                    <Card key={k.label} className="relative overflow-hidden py-4 px-5">
+                    <Card key={k.label} className="relative overflow-hidden py-3 sm:py-4 px-3 sm:px-5">
                       <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background:k.color }} />
-                      <div className="text-[10px] font-mono uppercase tracking-widest mb-2" style={{ color:"var(--text3)" }}>{k.label}</div>
-                      <div className="font-head text-2xl font-black" style={{ color:k.color }}>{k.value}</div>
-                      <div className="absolute right-3 top-3 text-2xl opacity-10">{k.icon}</div>
+                      <div className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest mb-1 sm:mb-2 truncate" style={{ color:"var(--text3)" }}>{k.label}</div>
+                      <div className="font-head text-lg sm:text-2xl font-black truncate" style={{ color:k.color }}>{k.value}</div>
+                      <div className="absolute right-2 sm:right-3 top-2 sm:top-3 text-xl sm:text-2xl opacity-10">{k.icon}</div>
                     </Card>
                   ))}
                 </div>
 
-                <div className="grid grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
                   {/* Status chart */}
                   <Card>
                     <div className="font-head text-sm font-bold mb-4">Entregas por Status</div>
-                    <div className="flex items-center gap-4">
-                      <ResponsiveContainer width={160} height={160}>
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <ResponsiveContainer width={140} height={140}>
                         <PieChart>
                           <Pie data={data.porStatus} dataKey="_count" cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3}>
                             {data.porStatus?.map((s: any, i: number) => (
@@ -172,20 +175,39 @@ export default function RelatoriosPage() {
                   </Card>
                 </div>
 
+                {/* Operacional */}
+                <Card>
+                  <div className="font-head text-sm font-bold mb-4">Resumo Operacional</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                    {[
+                      { l:"Peso Total", v: formatWeight(data.financeiro?.pesoTotal??0), c:"#3b82f6" },
+                      { l:"Volumes", v: String(data.financeiro?.volumeTotal??0), c:"#8b5cf6" },
+                      { l:"Ticket Médio", v: formatCurrency(data.financeiro?._avg?.valorFrete??0), c:"#f97316", sub:"Receita média por entrega" },
+                      { l:"Ticket Líquido", v: formatCurrency(data.entregas > 0 ? (data.financeiro?.margem ?? 0) / data.entregas : 0), c:"#10b981", sub:"Lucro médio por entrega" },
+                    ].map((item) => (
+                      <div key={item.l} className="text-center p-3 sm:p-4 rounded-xl" style={{ background:"var(--surface2)" }}>
+                        <div className="font-head text-base sm:text-xl font-black truncate" style={{ color:item.c }}>{item.v}</div>
+                        <div className="text-[9px] sm:text-[10px] font-mono mt-1 truncate" style={{ color:"var(--text3)" }}>{item.l.toUpperCase()}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
                 {/* Financeiro breakdown */}
                 <Card>
                   <div className="font-head text-sm font-bold mb-4">Resumo Financeiro do Mês</div>
-                  <div className="grid grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4">
                     {[
                       { l:"Frete Total", v: data.financeiro?._sum?.valorFrete??0, c:"#10b981" },
+                      { l:"Custo Motorista", v: data.financeiro?._sum?.custoMotorista??0, c:"#ef4444" },
                       { l:"Descarga", v: data.financeiro?._sum?.valorDescarga??0, c:"#3b82f6" },
-                      { l:"Armazenagem", v: data.financeiro?._sum?.valorArmazenagem??0, c:"#8b5cf6" },
+                      { l:"Armazenagem", v: data.financeiro?._sum?.armazenagem??0, c:"#8b5cf6" },
                       { l:"Adiantamentos", v: data.financeiro?._sum?.adiantamento??0, c:"#f59e0b" },
                       { l:"Saldo Pendente", v: data.financeiro?._sum?.saldoPendente??0, c:((data.financeiro?._sum?.saldoPendente??0)>0)?"#ef4444":"#10b981" },
                     ].map((item) => (
-                      <div key={item.l} className="text-center p-4 rounded-xl" style={{ background:"var(--surface2)" }}>
-                        <div className="font-head text-xl font-black" style={{ color:item.c }}>{formatCurrency(item.v)}</div>
-                        <div className="text-[10px] font-mono mt-1" style={{ color:"var(--text3)" }}>{item.l.toUpperCase()}</div>
+                      <div key={item.l} className="text-center p-3 sm:p-4 rounded-xl" style={{ background:"var(--surface2)" }}>
+                        <div className="font-head text-base sm:text-xl font-black truncate" style={{ color:item.c }}>{formatCurrency(item.v)}</div>
+                        <div className="text-[9px] sm:text-[10px] font-mono mt-1 truncate" style={{ color:"var(--text3)" }}>{item.l.toUpperCase()}</div>
                       </div>
                     ))}
                   </div>
@@ -195,17 +217,17 @@ export default function RelatoriosPage() {
 
             {/* ─── ANUAL ──────────────────────────────────────────────────── */}
             {tab === "anual" && data && (
-              <div className="space-y-5">
+              <div className="space-y-4 sm:space-y-5">
                 {/* Totais */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                   {[
                     { l:"Total Entregas", v: data.totalAnual?._count??0, c:"#f97316", suffix:"" },
                     { l:"Receita Anual", v: formatCurrency(data.totalAnual?._sum?.valorFrete??0), c:"#10b981", suffix:"" },
                     { l:"Peso Transportado", v: formatWeight(data.totalAnual?._sum?.pesoTotal??0), c:"#3b82f6", suffix:"" },
                   ].map((k) => (
-                    <Card key={k.l} className="text-center py-6">
-                      <div className="text-[10px] font-mono uppercase tracking-widest mb-2" style={{ color:"var(--text3)" }}>{k.l}</div>
-                      <div className="font-head text-4xl font-black" style={{ color:k.c }}>{k.v}</div>
+                    <Card key={k.l} className="text-center py-4 sm:py-6">
+                      <div className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest mb-1 sm:mb-2" style={{ color:"var(--text3)" }}>{k.l}</div>
+                      <div className="font-head text-2xl sm:text-4xl font-black truncate" style={{ color:k.c }}>{k.v}</div>
                     </Card>
                   ))}
                 </div>
@@ -241,8 +263,53 @@ export default function RelatoriosPage() {
 
             {/* ─── MOTORISTAS ─────────────────────────────────────────────── */}
             {tab === "motoristas" && data && (
-              <div className="space-y-5">
-                <Card>
+              <div className="space-y-4 sm:space-y-5">
+                {/* Mobile card list */}
+                <Card className="lg:hidden">
+                  <div className="font-head text-sm font-bold mb-4">Ranking — {MESES[mes-1]}/{ano}</div>
+                  {(!data.ranking || data.ranking.length === 0) ? (
+                    <div className="py-8 text-center text-sm" style={{ color: "var(--text3)" }}>Nenhum dado</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {data.ranking.map((m: any, i: number) => {
+                        const taxa = m.totalEntregas > 0 ? Math.round((m.entregues/m.totalEntregas)*100) : 0;
+                        return (
+                          <div key={m.id} onClick={() => handleMotoristaClick(m.id, m.nome)}
+                            className="p-3 rounded-lg cursor-pointer transition-all hover:-translate-y-0.5"
+                            style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <span className="font-head font-black text-lg flex-shrink-0" style={{ color: i<3 ? ["#f59e0b","#94a3b8","#cd7c3a"][i] : "var(--text3)" }}>
+                                  {i+1}
+                                </span>
+                                <span className="font-semibold text-sm truncate">{m.nome}</span>
+                              </div>
+                              <ChevronRight size={14} className="text-slate-500 flex-shrink-0" />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-[10px] font-mono mb-2">
+                              <div><span style={{ color:"var(--text3)" }}>Entregas</span><div className="text-sm font-bold" style={{ color:"var(--text)" }}>{m.totalEntregas}</div></div>
+                              <div><span style={{ color:"var(--text3)" }}>Entregues</span><div className="text-sm font-bold" style={{ color:"#10b981" }}>{m.entregues}</div></div>
+                              <div><span style={{ color:"var(--text3)" }}>Ocorr.</span><div className="text-sm font-bold" style={{ color: m.ocorrencias>0?"#ef4444":"var(--text3)" }}>{m.ocorrencias}</div></div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-[10px] font-mono mb-2">
+                              <div><span style={{ color:"var(--text3)" }}>Frete</span><div className="text-xs font-bold" style={{ color:"#10b981" }}>{formatCurrency(m.frete)}</div></div>
+                              <div><span style={{ color:"var(--text3)" }}>Saldo</span><div className="text-xs font-bold" style={{ color: (m.saldo||0)>0?"#ef4444":"#10b981" }}>{formatCurrency(m.saldo)}</div></div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-1.5 rounded-full" style={{ background:"var(--surface)" }}>
+                                <div className="h-full rounded-full" style={{ width:`${taxa}%`, background: taxa>=90?"#10b981":taxa>=70?"#f59e0b":"#ef4444" }} />
+                              </div>
+                              <span className="text-[10px] font-mono w-8" style={{ color:"var(--text2)" }}>{taxa}%</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Card>
+
+                {/* Desktop table */}
+                <Card className="hidden lg:block">
                   <div className="font-head text-sm font-bold mb-5">Ranking de Motoristas — {MESES[mes-1]}/{ano}</div>
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse">
@@ -324,10 +391,10 @@ export default function RelatoriosPage() {
 
       {/* Motorista Detail Modal */}
       {motoristaDetail.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,.5)" }}>
-          <div className="w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col animate-fadeIn" style={{ background: "var(--surface)" }}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ background: "rgba(0,0,0,.5)" }}>
+          <div className="w-full sm:max-w-5xl max-h-[95vh] sm:max-h-[90vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col animate-fadeIn" style={{ background: "var(--surface)" }}>
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b" style={{ borderColor: "var(--border)" }}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(249,115,22,.1)" }}>
                   <Truck size={18} className="text-orange-500" />
@@ -346,7 +413,7 @@ export default function RelatoriosPage() {
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-auto p-5">
+            <div className="flex-1 overflow-auto p-3 sm:p-5">
               {motoristaDetail.loading ? (
                 <div className="flex items-center justify-center py-16"><Loading /></div>
               ) : motoristaDetail.entregas.length === 0 ? (
@@ -354,7 +421,7 @@ export default function RelatoriosPage() {
               ) : (
                 <>
                   {/* KPIs */}
-                  <div className="grid grid-cols-5 gap-3 mb-5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-4 sm:mb-5">
                     {(() => {
                       const items = motoristaDetail.entregas;
                       const totalFrete = items.reduce((s: number, x: any) => s + (x.valorFrete || 0), 0);
@@ -370,9 +437,9 @@ export default function RelatoriosPage() {
                         { l: "Adiantamentos", v: formatCurrency(totalAdiantamento), c: "#f59e0b" },
                         { l: "Saldo Pendente", v: formatCurrency(totalSaldo), c: totalSaldo > 0 ? "#ef4444" : "#10b981" },
                       ].map((k) => (
-                        <div key={k.l} className="text-center p-3 rounded-xl" style={{ background: "var(--surface2)" }}>
-                          <div className="font-head text-lg font-black" style={{ color: k.c }}>{k.v}</div>
-                          <div className="text-[9px] font-mono mt-0.5 uppercase" style={{ color: "var(--text3)" }}>{k.l}</div>
+                        <div key={k.l} className="text-center p-2 sm:p-3 rounded-xl" style={{ background: "var(--surface2)" }}>
+                          <div className="font-head text-sm sm:text-lg font-black truncate" style={{ color: k.c }}>{k.v}</div>
+                          <div className="text-[8px] sm:text-[9px] font-mono mt-0.5 uppercase truncate" style={{ color: "var(--text3)" }}>{k.l}</div>
                         </div>
                       ));
                     })()}
