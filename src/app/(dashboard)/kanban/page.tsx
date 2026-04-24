@@ -96,7 +96,7 @@ function KanbanCard({ entrega, overlay = false }: { entrega: any; overlay?: bool
         <div className="flex items-center gap-1">
           {entrega.qualidade?.id && (
             <span className="text-[10px] items-center text-center justify-center font-bold px-1 py-0.5 rounded"
-              style={{ background: "rgba(234, 179, 8, 0.15)", color: "#ca8a04", title: "Possui registro de Qualidade" }}>
+              title="Possui registro de Qualidade" style={{ background: "rgba(234, 179, 8, 0.15)", color: "#ca8a04" }}>
               ⭐
             </span>
           )}

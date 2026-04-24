@@ -414,13 +414,13 @@ export default function PaletesPage() {
                       const stc = STATUS_COLORS[m.status] || STATUS_COLORS.PENDENTE;
                       return (
                         <Tr key={m.id}>
-                          <Td mono>{m.nf}</Td>
+                          <Td>{m.nf}</Td>
                           <Td>{m.tipoPallet}</Td>
                           <Td>{formatDate(m.dataEmissao)}</Td>
-                          <Td mono>{m.quantidade}</Td>
-                          <Td mono>{formatCNPJ(m.cnpjCliente)}</Td>
+                          <Td>{m.quantidade}</Td>
+                          <Td>{formatCNPJ(m.cnpjCliente)}</Td>
                           <Td>{m.razaoCliente}</Td>
-                          <Td mono>{m.glnCliente || "—"}</Td>
+                          <Td>{m.glnCliente || "—"}</Td>
                           <Td>
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: stc.bg, color: stc.color }}>
                               {m.status}

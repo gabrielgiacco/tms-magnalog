@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
         _sum: { valorDescarga: true, valorMotorista: true, adiantamentoMotorista: true, saldoMotorista: true },
       }),
       (prisma.rota as any).aggregate({
-        where: { OR: [{ data: { gte: inicio, lte: fim } }, { data: null, createdAt: { gte: inicio, lte: fim } }] },
+        where: { data: { gte: inicio, lte: fim } },
         _sum: { valorMotorista: true, adiantamentoMotorista: true, saldoMotorista: true },
       }),
       prisma.notaFiscal.count({ where: { createdAt: { gte: inicio, lte: fim } } }),
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
           const dE = new Date(entrada); dE.setHours(0, 0, 0, 0);
           const dS = new Date(saida); dS.setHours(0, 0, 0, 0);
           const dias = Math.max(0, Math.floor((dS.getTime() - dE.getTime()) / MS_PER_DAY));
-          const emitentes = [...new Set((e.notas || []).map((n: any) => n.emitenteCnpj).filter(Boolean))];
+          const emitentes = Array.from(new Set((e.notas || []).map((n: any) => n.emitenteCnpj).filter(Boolean)));
           for (const cnpj of emitentes) {
             const tab = tabelas.find((t: any) => t.cnpjCliente === cnpj);
             if (!tab) continue;
@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
             _sum: { valorFrete: true, pesoTotal: true },
           }),
           (prisma.rota as any).aggregate({
-            where: { OR: [{ data: { gte: inicio, lte: fim } }, { data: null, createdAt: { gte: inicio, lte: fim } }] },
+            where: { data: { gte: inicio, lte: fim } },
             _sum: { valorMotorista: true },
           }),
         ]);
@@ -194,7 +194,7 @@ export async function GET(req: NextRequest) {
           select: { status: true, valorFrete: true, pesoTotal: true, rotaId: true, valorMotorista: true, adiantamentoMotorista: true, saldoMotorista: true },
         },
         rotas: {
-          where: { OR: [{ data: { gte: inicio, lte: fim } }, { data: null, createdAt: { gte: inicio, lte: fim } }] },
+          where: { data: { gte: inicio, lte: fim } },
           include: {
             entregas: { select: { valorFrete: true, status: true } },
           },

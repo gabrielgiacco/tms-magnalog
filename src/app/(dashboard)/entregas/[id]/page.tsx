@@ -327,7 +327,7 @@ export default function EntregaDetailPage() {
                <span className="text-sm text-red-600 flex-1">Esta entrega possui ocorrência registrada.{!isReadOnly && " Escolha uma ação:"}</span>
                {!isReadOnly && (
                  <div className="flex gap-2">
-                   <Button size="sm" variant="outline" className="border-red-200 text-red-700 bg-white hover:bg-red-50" onClick={handleReentrega} disabled={saving}>
+                   <Button size="sm" variant="ghost" className="border-red-200 text-red-700 bg-white hover:bg-red-50" onClick={handleReentrega} disabled={saving}>
                      Gerar Reentrega (Duplicar)
                    </Button>
                    <Button size="sm" onClick={() => handleStatusChange("EM_ROTA")} disabled={saving}>

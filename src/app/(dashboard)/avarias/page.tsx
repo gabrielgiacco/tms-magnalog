@@ -594,7 +594,7 @@ export default function AvariasPage() {
                             if (allGroupSelected) {
                               setSelectedDevIds(prev => prev.filter(id => !pendenteIds.includes(id)));
                             } else {
-                              setSelectedDevIds(prev => [...new Set([...prev, ...pendenteIds])]);
+                              setSelectedDevIds(prev => Array.from(new Set([...prev, ...pendenteIds])));
                             }
                           }}>
                             {allGroupSelected ? <CheckSquare size={18} className="text-orange-500" /> : <Square size={18} className="text-slate-400" />}

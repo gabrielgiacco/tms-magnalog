@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       data: {
         descricao: body.descricao,
         valor: body.valor,
-        vencimento: body.vencimento ? new Date(body.vencimento) : null,
+        dataVencimento: body.vencimento ? new Date(body.vencimento) : new Date(),
         tipo: body.tipo, // 'MOTORISTA' | 'DESCARGA'
         entregaId: body.entregaId,
         rotaId: body.rotaId,

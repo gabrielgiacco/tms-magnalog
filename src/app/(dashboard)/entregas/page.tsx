@@ -355,7 +355,7 @@ export default function EntregasPage() {
                 className="accent-orange-500 w-3.5 h-3.5" />
               Mostrar finalizados
             </label>
-            <Button variant="ghost" size="sm" onClick={() => setShowFiltros((v) => !v)}
+            <Button variant="ghost" size="sm" onClick={() => setShowFiltros((v: boolean) => !v)}
               className={(dynamicFilters.length > 0 || agendadaDe || agendadaAte) ? "bg-orange-50 text-orange-600" : ""}>
               <Filter size={13} /> Filtros {(() => {
                 const count = dynamicFilters.length + ((agendadaDe || agendadaAte) ? 1 : 0);
@@ -651,10 +651,10 @@ export default function EntregasPage() {
                     Página {page} de {pages} · {total} registros
                   </span>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+                    <Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage((p: number) => p - 1)}>
                       <ChevronLeft size={14} />
                     </Button>
-                    <Button variant="ghost" size="sm" disabled={page === pages} onClick={() => setPage((p) => p + 1)}>
+                    <Button variant="ghost" size="sm" disabled={page === pages} onClick={() => setPage((p: number) => p + 1)}>
                       <ChevronRight size={14} />
                     </Button>
                   </div>
