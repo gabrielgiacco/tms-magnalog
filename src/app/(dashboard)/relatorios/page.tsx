@@ -35,10 +35,29 @@ export default function RelatoriosPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ tipo: tab, ano: String(ano), mes: String(mes) });
-    const res = await fetch(`/api/relatorios?${params}`);
-    setData(await res.json());
-    setLoading(false);
+    try {
+      const params = new URLSearchParams({ tipo: tab, ano: String(ano), mes: String(mes) });
+      const res = await fetch(`/api/relatorios?${params}`);
+      if (!res.ok) {
+        console.error("API Error:", res.status, res.statusText);
+      }
+      const text = await res.text();
+      try {
+        const json = JSON.parse(text);
+        if (json.error) {
+          console.error("API returned error:", json.error);
+        }
+        setData(json);
+      } catch (err) {
+        console.error("Failed to parse JSON:", text);
+        setData({ error: "Failed to parse API response" });
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setData({ error: String(err) });
+    } finally {
+      setLoading(false);
+    }
   }, [tab, ano, mes]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -107,7 +126,12 @@ export default function RelatoriosPage() {
           </div>
         </div>
 
-        {loading ? <Loading /> : (
+        {loading ? <Loading /> : data?.error ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="text-red-500 font-bold mb-2">Erro ao carregar os dados</div>
+            <div className="text-sm" style={{ color: "var(--text3)" }}>{data.error}</div>
+          </div>
+        ) : (
           <>
             {/* ─── MENSAL ─────────────────────────────────────────────────── */}
             {tab === "mensal" && data && (

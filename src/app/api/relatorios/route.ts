@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
+export const dynamic = "force-dynamic";
+
 function dateFilter(inicio: Date, fim: Date) {
   return {
     OR: [
@@ -29,15 +31,12 @@ export async function GET(req: NextRequest) {
     const fim = new Date(ano, mes, 0, 23, 59, 59);
     const where = dateFilter(inicio, fim);
 
+    // Batch 1
     const [
       entregasCount,
       porStatus,
       porCidade,
       receitaTotal,
-      finEntregasDiretas,
-      finRotas,
-      notas,
-      volumeAgg,
     ] = await Promise.all([
       prisma.entrega.count({ where }),
       prisma.entrega.groupBy({ by: ["status"], where, _count: true }),
@@ -47,6 +46,15 @@ export async function GET(req: NextRequest) {
         _sum: { valorFrete: true, pesoTotal: true, volumeTotal: true },
         _avg: { valorFrete: true },
       }),
+    ]);
+
+    // Batch 2
+    const [
+      finEntregasDiretas,
+      finRotas,
+      notas,
+      volumeAgg,
+    ] = await Promise.all([
       prisma.entrega.aggregate({
         where: { ...where, rotaId: null },
         _sum: { valorDescarga: true, valorMotorista: true, adiantamentoMotorista: true, saldoMotorista: true },
@@ -143,31 +151,32 @@ export async function GET(req: NextRequest) {
   // ─── Relatório Anual ───────────────────────────────────────────────────────
   if (tipo === "anual") {
     const meses = Array.from({ length: 12 }, (_, i) => i + 1);
-    const dadosMensais = await Promise.all(
-      meses.map(async (m: number) => {
-        const inicio = new Date(ano, m - 1, 1);
-        const fim = new Date(ano, m, 0, 23, 59, 59);
-        const where = dateFilter(inicio, fim);
-        const [count, aggEntrega, aggRota] = await Promise.all([
-          prisma.entrega.count({ where }),
-          prisma.entrega.aggregate({
-            where,
-            _sum: { valorFrete: true, pesoTotal: true },
-          }),
-          (prisma.rota as any).aggregate({
-            where: { data: { gte: inicio, lte: fim } },
-            _sum: { valorMotorista: true },
-          }),
-        ]);
-        return {
-          mes: m,
-          entregas: count,
-          frete: aggEntrega._sum.valorFrete ?? 0,
-          peso: aggEntrega._sum.pesoTotal ?? 0,
-          custoMotorista: (aggRota._sum as any)?.valorMotorista ?? 0,
-        };
-      })
-    );
+    const dadosMensais = [];
+    
+    // Executa os meses sequencialmente para não esgotar o pool de conexões
+    for (const m of meses) {
+      const inicio = new Date(ano, m - 1, 1);
+      const fim = new Date(ano, m, 0, 23, 59, 59);
+      const where = dateFilter(inicio, fim);
+      const [count, aggEntrega, aggRota] = await Promise.all([
+        prisma.entrega.count({ where }),
+        prisma.entrega.aggregate({
+          where,
+          _sum: { valorFrete: true, pesoTotal: true },
+        }),
+        (prisma.rota as any).aggregate({
+          where: { data: { gte: inicio, lte: fim } },
+          _sum: { valorMotorista: true },
+        }),
+      ]);
+      dadosMensais.push({
+        mes: m,
+        entregas: count,
+        frete: aggEntrega._sum.valorFrete ?? 0,
+        peso: aggEntrega._sum.pesoTotal ?? 0,
+        custoMotorista: (aggRota._sum as any)?.valorMotorista ?? 0,
+      });
+    }
 
     const anoInicio = new Date(ano, 0, 1);
     const anoFim = new Date(ano, 11, 31, 23, 59, 59);
