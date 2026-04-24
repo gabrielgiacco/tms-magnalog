@@ -165,6 +165,7 @@ export async function GET(req: NextRequest) {
       volumeTotal: { volumeTotal: sortOrder },
       pesoTotal: { pesoTotal: sortOrder },
       motorista: { motorista: { nome: sortOrder } },
+      dataChegada: { dataChegada: sortOrder },
       dataAgendada: { dataAgendada: sortOrder },
       status: { status: sortOrder },
       valorFrete: { valorFrete: sortOrder },

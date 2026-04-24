@@ -521,9 +521,12 @@ export default function EntregasPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           {e.valorFrete > 0 && <span className="text-[11px] font-mono" style={{ color: "#10b981" }}>{formatCurrency(e.valorFrete)}</span>}
-                          <span className={`text-[11px] font-mono ${isAtrasada ? "text-red-400 font-bold" : ""}`} style={!isAtrasada ? { color: "var(--text3)" } : {}}>
-                            {formatDate(e.dataAgendada)}{isAtrasada ? " !" : ""}
-                          </span>
+                          <div className="flex flex-col items-end">
+                            {e.dataChegada && <span className="text-[10px] font-mono" style={{ color: "var(--text3)" }}>Chegada: {formatDate(e.dataChegada)}</span>}
+                            <span className={`text-[11px] font-mono ${isAtrasada ? "text-red-400 font-bold" : ""}`} style={!isAtrasada ? { color: "var(--text3)" } : {}}>
+                              {formatDate(e.dataAgendada)}{isAtrasada ? " !" : ""}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -543,6 +546,7 @@ export default function EntregasPage() {
                     <SortTh col="volumeTotal" label="Volumes" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
                     <SortTh col="pesoTotal" label="Peso" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
                     <SortTh col="motorista" label="Motorista" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
+                    <SortTh col="dataChegada" label="Chegada" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
                     <SortTh col="dataAgendada" label="Agendado" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
                     <SortTh col="status" label="Status" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
                     <SortTh col="valorFrete" label="Frete" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
@@ -601,6 +605,11 @@ export default function EntregasPage() {
                         <Td><span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: "var(--surface2)", color: "var(--text2)" }}>{e.volumeTotal || 0}</span></Td>
                         <Td><span className="text-xs font-mono" style={{ color: "var(--text2)" }}>{formatWeight(e.pesoTotal)}</span></Td>
                         <Td><span className="text-xs" style={{ color: "var(--text2)" }}>{e.motorista?.nome || <span style={{ color: "var(--text3)" }}>—</span>}</span></Td>
+                        <Td>
+                          <span className="text-xs font-mono" style={{ color: "var(--text3)" }}>
+                            {formatDate(e.dataChegada)}
+                          </span>
+                        </Td>
                         <Td>
                           <span className={`text-xs font-mono ${atrasada ? "text-red-400" : ""}`} style={!atrasada ? { color: "var(--text3)" } : {}}>
                             {formatDate(e.dataAgendada)}{atrasada ? " ⚠" : ""}
