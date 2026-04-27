@@ -28,6 +28,7 @@ const FILTER_OPTIONS = [
   { value: "clienteNome", label: "Cliente", placeholder: "Razão social ou CNPJ", type: "text" },
   { value: "fornecedor", label: "Fornecedor", placeholder: "Buscar por remetente", type: "text" },
   { value: "nf", label: "NF (Nota Fiscal)", placeholder: "Número da NF", type: "text" },
+  { value: "anotacoesNf", label: "Dados Adicionais da NF", placeholder: "Buscar nos dados adicionais", type: "text" },
   { value: "uf", label: "UF", placeholder: "Ex: SP", type: "text" },
   { value: "motorista", label: "Motorista", placeholder: "Nome do motorista", type: "text" },
   { value: "volume", label: "Volume Específico", placeholder: "Ex: 5", type: "number" },
@@ -87,7 +88,7 @@ export default function EntregasPage() {
   // Build initial filters from URL query params (e.g. /entregas?status=OCORRENCIA)
   function getFiltersFromURL(): DynamicFilter[] | null {
     const urlFilters: DynamicFilter[] = [];
-    const supportedParams = ["status", "cidade", "clienteNome", "fornecedor", "uf", "motorista", "volume", "nf"];
+    const supportedParams = ["status", "cidade", "clienteNome", "fornecedor", "uf", "motorista", "volume", "nf", "anotacoesNf"];
     for (const param of supportedParams) {
       const values = searchParams.getAll(param);
       for (const val of values) {
